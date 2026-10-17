@@ -10,8 +10,10 @@ import {
   newProject, createTimeline, findTl, setValues, ensureKey, keyAt, sortKeys, deleteTimeline, duplicateTimeline,
   serialize, deserialize, projectEnd, defaults, rootOf, isDescendant,
 } from './project.js';
-import { debounce, DEG, TRANSITION_GROUPS } from './util.js';
-import { CATALOG, texturePaths, clearTextureCache } from './models.js';
+import { debounce, DEG, TRANSITION_GROUPS, uid, transitionLabel } from './util.js';
+import { CATALOG, texturePaths, clearTextureCache, getModelDef, SEGMENT_PAIRS } from './models.js';
+import * as skins from './skins.js';
+import { openEasePicker } from './ease.js';
 import { initPack, importPack, clearPack, packInfo } from './pack.js';
 import * as native from './native.js';
 import { ZipWriter } from './zip.js';
@@ -117,6 +119,16 @@ class App {
     );
     this.status = $('vpStatus');
 
+    // Axis lock: restrict the gizmo to one axis for precise control on touch screens.
+    this.axisBtns = {};
+    const axisBar = $('vpAxis');
+    axisBar.append(h('span', { class: 'axis-label' }, 'Axis'));
+    for (const ax of ['x', 'y', 'z']) {
+      const b = h('button', { class: `btn-ghost axis ${ax}`, type: 'button', title: `Lock to ${ax.toUpperCase()} axis`, 'aria-label': `Lock to ${ax.toUpperCase()} axis`, onclick: () => this.setAxisLock(this.engine.axisLock === ax ? null : ax) }, ax.toUpperCase());
+      this.axisBtns[ax] = b;
+      axisBar.append(b);
+    }
+
     // Dock tabs (compact) and side pivot (wide)
     const tabs = [['timeline', 'timeline', 'Timeline'], ['properties', 'sliders', 'Properties'], ['scene', 'settings', 'Scene']];
     this.dockTabs = {};
@@ -162,6 +174,16 @@ class App {
     this.tool = tool;
     this.engine.setTool(tool);
     for (const [k, b] of Object.entries(this.toolBtns)) b.classList.toggle('active', k === tool);
+    this.syncAxisBar?.();
+  }
+
+  setAxisLock(axis) {
+    this.engine.setAxisLock(axis);
+    for (const [k, b] of Object.entries(this.axisBtns)) b.classList.toggle('active', k === axis);
+  }
+
+  syncAxisBar() {
+    $('vpAxis').hidden = !this.selectedId || this.tool === 'select' || this.engine.viewCamId === this.selectedId;
   }
 
   toggleSpace() {
@@ -289,6 +311,7 @@ class App {
       'sep',
       { header: 'Transition' },
       ...common.map((t) => ({ label: labelOf(t), icon: t === this.currentTransition() ? 'check' : null, disabled: !hasSel, action: () => this.setTransitionForSelection(t) })),
+      { label: 'All curves\u2026', icon: 'more', disabled: !hasSel, action: () => openEasePicker(this.timeline.easeBtn, this.currentTransition(), (v) => this.setTransitionForSelection(v)) },
     ], { point });
   }
 
@@ -318,6 +341,7 @@ class App {
   }
 
   refreshAll() {
+    this.syncAxisBar();
     $('projectName').textContent = this.project.name;
     document.title = `${this.project.name} - Minewasp 3D`;
     this.engine.setSelected(this.selectedId);
@@ -434,6 +458,7 @@ class App {
     this.selectedId = id;
     if (!keepKeys && changed) this.selKeys.clear();
     this.engine.setSelected(id);
+    this.syncAxisBar();
     if (id) {
       // Reveal the row in the timeline.
       let t = findTl(this.project, findTl(this.project, id).parent);
@@ -456,9 +481,10 @@ class App {
     else this.selKeys.add(k);
     this.timeline.draw();
     this.timeline.syncToolbar();
+    this.props.update();
   }
 
-  clearKeySelection() { this.selKeys.clear(); this.timeline.draw(); }
+  clearKeySelection() { this.selKeys.clear(); this.timeline.draw(); this.props.update(); }
 
   selectAllKeys() {
     this.selKeys.clear();
@@ -598,6 +624,17 @@ class App {
     this.mutate(() => { for (const { key } of refs) key.t = t; });
   }
 
+  /* Applies a transition to every keyframe of an object (including its body parts) or of one part. */
+  applyTransitionToObject(id, t) {
+    const tl = findTl(this.project, id);
+    if (!tl) return;
+    const group = tl.type === 'bone' ? [tl] : [tl, ...this.project.timelines.filter((x) => x.owner === id)];
+    const count = group.reduce((n, x) => n + x.keys.length, 0);
+    if (!count) { toast('This object has no keyframes yet.'); return; }
+    this.mutate(() => { for (const x of group) for (const k of x.keys) k.t = t; });
+    toast(`${transitionLabel(t)} applied to ${count} keyframe${count > 1 ? 's' : ''}.`);
+  }
+
   setTransitionAt(id, f, t) {
     const tl = findTl(this.project, id);
     const k = tl && keyAt(tl, f);
@@ -614,7 +651,7 @@ class App {
 
   openLibrary() { openLibrary(this); }
 
-  addFromCatalog(entry) {
+  addFromCatalog(entry, props = null) {
     let tl;
     this.mutate(() => {
       const values = {};
@@ -628,7 +665,7 @@ class App {
         if (entry.type === 'pointlight' || entry.type === 'spotlight') values.py = 40;
         if (entry.type === 'item') values.py = 0;
       }
-      tl = createTimeline(this.project, entry, { values });
+      tl = createTimeline(this.project, entry, { values, props });
       this.selectedId = tl.id;
       this.selKeys.clear();
     }, { structural: true });
@@ -682,19 +719,101 @@ class App {
     }, { structural: true });
   }
 
-  async importSkin(id) {
+  /* Picks a skin PNG, validates it and saves it to the skin library. Resolves with the skin or null. */
+  async pickSkinFile() {
     const file = await native.pickFile('image/png');
-    if (!file) return;
-    const url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
-    const img = new Image();
-    img.onload = () => {
-      const ok = img.width >= 64 && (img.height === img.width || img.height === img.width / 2);
-      if (!ok) { toast('Skin must be a 64×64 or 64×32 PNG.', 'error'); return; }
-      this.setObjectProp(id, { skin: url });
-      toast('Skin applied.');
-    };
-    img.onerror = () => toast('Couldn’t read that image.', 'error');
-    img.src = url;
+    if (!file) return null;
+    try {
+      const data = await skins.blobToDataUrl(file);
+      const img = await skins.loadImage(data);
+      if (!skins.isSkinImage(img)) { toast('Skins must be 64\u00d764 or 64\u00d732 PNG files.', 'error'); return null; }
+      const name = file.name.replace(/\.png$/i, '').slice(0, 40) || 'Custom skin';
+      return skins.saveSkin({ name, data, slim: skins.detectSlim(img) });
+    } catch (e) {
+      toast(e.message || String(e), 'error');
+      return null;
+    }
+  }
+
+  /* Asks for a username and fetches that player's skin into the skin library. */
+  async pickSkinByUsername() {
+    const name = await promptDialog('Get skin by username', '', 'Get skin');
+    if (!name || !name.trim()) return null;
+    const pt = progressToast(`Getting ${name.trim()}\u2019s skin`);
+    pt.set(0.3);
+    try {
+      const s = await skins.fetchSkinByUsername(name);
+      return skins.saveSkin(s);
+    } catch (e) {
+      toast(e.message || String(e), 'error');
+      return null;
+    } finally {
+      pt.close();
+    }
+  }
+
+  applySkin(id, skin) {
+    if (!skin) return;
+    this.setObjectProp(id, { skin: skin.data, slim: skin.slim });
+    toast(`Applied ${skin.name}.`);
+  }
+
+  async importSkin(id) { this.applySkin(id, await this.pickSkinFile()); }
+
+  async skinFromUsername(id) { this.applySkin(id, await this.pickSkinByUsername()); }
+
+  /* Adds a character wearing a saved skin. */
+  addCharacterWithSkin(skin, segmented = false) {
+    if (!skin) return;
+    this.addFromCatalog(
+      { type: 'model', ref: 'human', variant: skin.slim ? 'slim' : 'classic', name: skin.name, segmented },
+      { skin: skin.data, slim: skin.slim },
+    );
+  }
+
+  /*
+   * Switches a character between bendable and segmented limbs. Bend keyframes
+   * become lower-limb rotations and back, so existing animation is kept.
+   */
+  setSegmented(id, on) {
+    const tl = findTl(this.project, id);
+    if (!tl || tl.type !== 'model' || tl.ref !== 'human' || !!tl.segmented === on) return;
+    this.mutate(() => {
+      tl.segmented = on;
+      const def = getModelDef(tl);
+      const owned = () => this.project.timelines.filter((t) => t.owner === id);
+      const byName = Object.fromEntries(owned().map((b) => [b.bone, b]));
+      for (const b of def.bones) {
+        if (byName[b.name]) continue;
+        const bt = {
+          id: uid(), name: b.label, type: 'bone', owner: id, bone: b.name,
+          parent: b.parent ? byName[b.parent].id : id, expanded: false, hidden: false, keys: [],
+        };
+        byName[b.name] = bt;
+        const parentIdx = this.project.timelines.indexOf(byName[b.parent] || tl);
+        this.project.timelines.splice(parentIdx + 1, 0, bt);
+      }
+      for (const [upperName, [lowerName, sign]] of Object.entries(SEGMENT_PAIRS)) {
+        const upper = byName[upperName], lower = byName[lowerName];
+        if (!upper || !lower) continue;
+        if (on) {
+          for (const k of upper.keys) {
+            if ('bend' in k.v) setValues(lower, k.f, { rx: k.v.bend * sign + 0 }, this.project).t = k.t;
+            delete k.v.bend;
+          }
+        } else {
+          for (const k of lower.keys) {
+            if ('rx' in k.v) setValues(upper, k.f, { bend: k.v.rx * sign + 0 }, this.project).t = k.t;
+          }
+          for (const t of this.project.timelines) if (t.parent === lower.id) t.parent = upper.id;
+        }
+      }
+      const keep = new Set(def.bones.map((b) => b.name));
+      const removed = new Set(owned().filter((t) => !keep.has(t.bone)).map((t) => t.id));
+      this.project.timelines = this.project.timelines.filter((t) => !removed.has(t.id));
+      if (removed.has(this.selectedId)) this.selectedId = id;
+    }, { structural: true });
+    toast(on ? 'Limbs are now segmented.' : 'Limbs now bend.');
   }
 
   toggleExpanded(id) {

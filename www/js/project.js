@@ -149,6 +149,8 @@ export function createTimeline(project, entry, opts = {}) {
     tl.slim = !!HUMAN_SKINS[tl.variant]?.slim;
   }
   if (entry.type === 'shape') tl.tex = '';
+  if (entry.segmented) tl.segmented = true;
+  Object.assign(tl, opts.props || {});
   tl.name = uniqueName(project, entry.name || catalogName(tl));
   project.timelines.push(tl);
 

@@ -189,6 +189,7 @@ export class Engine {
     this.transform.setSize(coarse ? 1.15 : 0.85);
     this.gizmo = this.transform.getHelper();
     scene.add(this.gizmo);
+    this.tuneRotateGizmo(coarse);
 
     this.orbit = new OrbitControls(this.workCam, r.domElement);
     this.orbit.target.set(0, 16, 0);
@@ -261,6 +262,37 @@ export class Engine {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
+  }
+
+  /*
+   * Makes the rotate gizmo predictable on touch screens: removes the free
+   * trackball sphere and the screen-space ring (both easy to grab by accident
+   * and they tumble a part on every axis) and widens the axis ring pickers.
+   */
+  tuneRotateGizmo(coarse) {
+    const giz = this.transform._gizmo;
+    for (const group of [giz.gizmo.rotate, giz.picker.rotate, giz.helper?.rotate]) {
+      if (!group) continue;
+      for (const c of [...group.children]) if (c.name === 'E' || c.name === 'XYZE') group.remove(c);
+    }
+    const tube = coarse ? 0.22 : 0.14;
+    const rot = { X: [0, -Math.PI / 2, -Math.PI / 2], Y: [Math.PI / 2, 0, 0], Z: [0, 0, -Math.PI / 2] };
+    for (const c of giz.picker.rotate.children) {
+      if (!rot[c.name]) continue;
+      const g = new THREE.TorusGeometry(0.5, tube, 6, 32);
+      g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot[c.name])));
+      c.geometry.dispose();
+      c.geometry = g;
+    }
+  }
+
+  /* Restricts the gizmo to one axis ('x' | 'y' | 'z') or shows all (null). */
+  setAxisLock(axis) {
+    this.axisLock = axis;
+    this.transform.showX = !axis || axis === 'x';
+    this.transform.showY = !axis || axis === 'y';
+    this.transform.showZ = !axis || axis === 'z';
+    this.dirty = true;
   }
 
   /* ---------- Layout ---------- */

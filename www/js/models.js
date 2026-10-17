@@ -39,8 +39,15 @@ function convertModel({ textures, parts }) {
         tex: c.tex || 'main',
         fallback: c.fallback,
         p: c.p,
+        seg: c.seg,
       };
     });
+    for (const b of boxes) {
+      if (!b.seg) continue;
+      const mid = b.from[1] + b.size[1] / 2;
+      b.slice = b.seg === 'upper' ? [mid, 1e9] : [-1e9, mid];
+      delete b.seg;
+    }
     let bend = null;
     if (p.bend) {
       const b0 = boxes[0];
@@ -91,39 +98,61 @@ const ARMOR_DEFAULT = { body: 'Body', head: 'Head', right_arm: 'Right arm', left
  * Player-style humanoid (64x64 layout). The torso pivots at the hips like
  * Mine-imator; geometry is identical to the vanilla player model.
  */
-function playerModel({ slim = false, armRot = null, paths, procedural }) {
+function playerModel({ slim = false, armRot = null, paths, procedural, segmented = false }) {
   const aw = slim ? 3 : 4;
   const ay = slim ? 2.5 : 2;
-  return convertModel({
-    textures: { main: { size: [64, 64], paths, procedural } },
-    parts: [
-      { name: 'body', label: ARMOR_DEFAULT.body, pivot: [0, 12, 0], bend: { part: 'upper', sign: 1 }, cubes: [
-        { uv: [16, 16], box: [-4, -12, -2, 8, 12, 4] },
-        { uv: [16, 32], box: [-4, -12, -2, 8, 12, 4], inflate: 0.25, overlay: true },
-      ] },
-      { name: 'head', label: ARMOR_DEFAULT.head, parent: 'body', pivot: [0, -12, 0], cubes: [
-        { uv: [0, 0], box: [-4, -8, -4, 8, 8, 8] },
-        { uv: [32, 0], box: [-4, -8, -4, 8, 8, 8], inflate: 0.5, overlay: true },
-      ] },
-      { name: 'right_arm', label: ARMOR_DEFAULT.right_arm, parent: 'body', pivot: [-5, ay - 12, 0], rot: armRot, bend: { part: 'lower', sign: -1 }, cubes: [
-        { uv: [40, 16], box: [slim ? -2 : -3, -2, -2, aw, 12, 4] },
-        { uv: [40, 32], box: [slim ? -2 : -3, -2, -2, aw, 12, 4], inflate: 0.25, overlay: true },
-      ] },
-      { name: 'left_arm', label: ARMOR_DEFAULT.left_arm, parent: 'body', pivot: [5, ay - 12, 0], rot: armRot, bend: { part: 'lower', sign: -1 }, cubes: [
-        { uv: [32, 48], box: [-1, -2, -2, aw, 12, 4], fallback: { uv: [40, 16], mirror: true } },
-        { uv: [48, 48], box: [-1, -2, -2, aw, 12, 4], inflate: 0.25, overlay: true },
-      ] },
-      { name: 'right_leg', label: ARMOR_DEFAULT.right_leg, pivot: [-1.9, 12, 0], bend: { part: 'lower', sign: 1 }, cubes: [
-        { uv: [0, 16], box: [-2, 0, -2, 4, 12, 4] },
-        { uv: [0, 32], box: [-2, 0, -2, 4, 12, 4], inflate: 0.25, overlay: true },
-      ] },
-      { name: 'left_leg', label: ARMOR_DEFAULT.left_leg, pivot: [1.9, 12, 0], bend: { part: 'lower', sign: 1 }, cubes: [
-        { uv: [16, 48], box: [-2, 0, -2, 4, 12, 4], fallback: { uv: [0, 16], mirror: true } },
-        { uv: [0, 48], box: [-2, 0, -2, 4, 12, 4], inflate: 0.25, overlay: true },
-      ] },
-    ],
-  });
+  const parts = [
+    { name: 'body', label: ARMOR_DEFAULT.body, pivot: [0, 12, 0], bend: { part: 'upper', sign: 1 }, cubes: [
+      { uv: [16, 16], box: [-4, -12, -2, 8, 12, 4] },
+      { uv: [16, 32], box: [-4, -12, -2, 8, 12, 4], inflate: 0.25, overlay: true },
+    ] },
+    { name: 'head', label: ARMOR_DEFAULT.head, parent: 'body', pivot: [0, -12, 0], cubes: [
+      { uv: [0, 0], box: [-4, -8, -4, 8, 8, 8] },
+      { uv: [32, 0], box: [-4, -8, -4, 8, 8, 8], inflate: 0.5, overlay: true },
+    ] },
+  ];
+  /*
+   * A limb is one bendable part, or (segmented) an upper part with a separately
+   * posable lower part pivoting at the middle of the limb.
+   */
+  const limb = (name, label, parent, pivot, rot, cubes, bendSign, lowerName, lowerLabel) => {
+    if (!segmented) {
+      parts.push({ name, label, parent, pivot, rot, bend: { part: 'lower', sign: bendSign }, cubes });
+      return;
+    }
+    const [bx, by, bz, w, h, d] = cubes[0].box;
+    const off = [bx + w / 2, by + h / 2, bz + d / 2];
+    parts.push({ name, label, parent, pivot, rot, cubes: cubes.map((c) => ({ ...c, seg: 'upper' })) });
+    parts.push({
+      name: lowerName, label: lowerLabel, parent: name, pivot: off,
+      cubes: cubes.map((c) => ({ ...c, seg: 'lower', box: [c.box[0] - off[0], c.box[1] - off[1], c.box[2] - off[2], c.box[3], c.box[4], c.box[5]] })),
+    });
+  };
+  const ax = slim ? -2 : -3;
+  limb('right_arm', ARMOR_DEFAULT.right_arm, 'body', [-5, ay - 12, 0], armRot, [
+    { uv: [40, 16], box: [ax, -2, -2, aw, 12, 4] },
+    { uv: [40, 32], box: [ax, -2, -2, aw, 12, 4], inflate: 0.25, overlay: true },
+  ], -1, 'right_forearm', 'Right forearm');
+  limb('left_arm', ARMOR_DEFAULT.left_arm, 'body', [5, ay - 12, 0], armRot, [
+    { uv: [32, 48], box: [-1, -2, -2, aw, 12, 4], fallback: { uv: [40, 16], mirror: true } },
+    { uv: [48, 48], box: [-1, -2, -2, aw, 12, 4], inflate: 0.25, overlay: true },
+  ], -1, 'left_forearm', 'Left forearm');
+  limb('right_leg', ARMOR_DEFAULT.right_leg, null, [-1.9, 12, 0], null, [
+    { uv: [0, 16], box: [-2, 0, -2, 4, 12, 4] },
+    { uv: [0, 32], box: [-2, 0, -2, 4, 12, 4], inflate: 0.25, overlay: true },
+  ], 1, 'right_lower_leg', 'Right lower leg');
+  limb('left_leg', ARMOR_DEFAULT.left_leg, null, [1.9, 12, 0], null, [
+    { uv: [16, 48], box: [-2, 0, -2, 4, 12, 4], fallback: { uv: [0, 16], mirror: true } },
+    { uv: [0, 48], box: [-2, 0, -2, 4, 12, 4], inflate: 0.25, overlay: true },
+  ], 1, 'left_lower_leg', 'Left lower leg');
+  return convertModel({ textures: { main: { size: [64, 64], paths, procedural } }, parts });
 }
+
+/* Lower-limb parts of segmented characters, keyed by their upper part, with the bend sign they replace. */
+export const SEGMENT_PAIRS = {
+  right_arm: ['right_forearm', -1], left_arm: ['left_forearm', -1],
+  right_leg: ['right_lower_leg', 1], left_leg: ['left_lower_leg', 1],
+};
 
 const BONE = '#d2d2cc';
 const ribs = (P, [x, y, w, h]) => {
@@ -141,6 +170,8 @@ const chickenLeg = (P, [x, y, w, h]) => {
 const MODELS = {
   human: playerModel({ paths: null }),
   human_slim: playerModel({ slim: true, paths: null }),
+  human_seg: playerModel({ segmented: true, paths: null }),
+  human_slim_seg: playerModel({ slim: true, segmented: true, paths: null }),
 
   zombie: playerModel({
     armRot: [-90, 0, 0],
@@ -443,6 +474,7 @@ const HUMAN_SKIN_PATHS = {
 export function getModelDef(tl) {
   if (tl.ref === 'human') {
     const slim = tl.slim ?? HUMAN_SKINS[tl.variant]?.slim;
+    if (tl.segmented) return slim ? MODELS.human_slim_seg : MODELS.human_seg;
     return slim ? MODELS.human_slim : MODELS.human;
   }
   return MODELS[tl.ref] || MODELS.human;
@@ -747,6 +779,26 @@ function addBox(gb, box, origin, slice, texW, texH) {
   if (left) gb.quad([[x1, yb, z1], [x1, yb, z0], [x1, ya, z1], [x1, ya, z0]], [1, 0, 0], sideRect(left), texW, texH, mirror);
   if (R.top && sy1 >= y1 - 1e-6) gb.quad([[x0, yb, z0], [x1, yb, z0], [x0, yb, z1], [x1, yb, z1]], [0, 1, 0], rect(R.top), texW, texH, mirror);
   if (R.bottom && sy0 <= y0 + 1e-6) gb.quad([[x0, ya, z1], [x1, ya, z1], [x0, ya, z0], [x1, ya, z0]], [0, -1, 0], rect(R.bottom), texW, texH, mirror, !box.faces);
+
+  // Close cuts made by bends and segments, sampling the texture row next to the cut.
+  if (slice && !box.overlay && !box.faces && R.front) {
+    const f = R.front;
+    if (sy1 < y1 - 1e-6) {
+      const v = f[1] + fTop * f[3];
+      gb.quad([[x0, yb, z0], [x1, yb, z0], [x0, yb, z1], [x1, yb, z1]], [0, 1, 0], [f[0], v, f[0] + f[2], v + 0.5], texW, texH, mirror);
+    }
+    if (sy0 > y0 + 1e-6) {
+      const v = f[1] + fBot * f[3];
+      gb.quad([[x0, ya, z1], [x1, ya, z1], [x0, ya, z0], [x1, ya, z0]], [0, -1, 0], [f[0], v - 0.5, f[0] + f[2], v], texW, texH, mirror);
+    }
+  }
+}
+
+/* Intersection of two vertical slices (either may be null). */
+function joinSlice(a, b) {
+  if (!a) return b || null;
+  if (!b) return a;
+  return [Math.max(a[0], b[0]), Math.min(a[1], b[1])];
 }
 
 /* Layout units -> texture coordinates; supports HD packs and 64x64 files using a 64x32 layout. */
@@ -787,7 +839,7 @@ function meshesFor(boxes, origin, slice, texs, parent) {
     const [tw, th] = texUnits(tex);
     for (const translucent of [false, true]) {
       const gb = new GeoBuilder();
-      for (const box of boxes) if ((box.tex || 'main') === name && !!box.translucent === translucent) addBox(gb, box, origin, slice, tw, th);
+      for (const box of boxes) if ((box.tex || 'main') === name && !!box.translucent === translucent) addBox(gb, box, origin, joinSlice(slice, box.slice), tw, th);
       if (gb.empty) continue;
       const mesh = new THREE.Mesh(gb.build(), modelMaterial(tex.texture, translucent));
       mesh.castShadow = true;

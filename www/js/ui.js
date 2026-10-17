@@ -164,6 +164,28 @@ export function openMenu(anchor, items, opts = {}) {
   return wrap;
 }
 
+/* Opens arbitrary content in a flyout anchored to an element. */
+export function showFlyout(anchor, content, opts = {}) {
+  closeFlyout();
+  const wrap = h('div', { class: 'flyout-wrap' });
+  const scrim = h('div', { class: 'flyout-scrim' });
+  scrim.addEventListener('pointerdown', (e) => { e.preventDefault(); closeFlyout(); });
+  const fly = h('div', { class: 'flyout ' + (opts.cls || '') }, content);
+  wrap.append(scrim, fly);
+  layer().append(wrap);
+  openFlyout = wrap;
+  const r = anchor.getBoundingClientRect();
+  const fw = fly.offsetWidth, fh = fly.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let x = opts.align === 'right' ? r.right - fw : r.left;
+  let y = r.bottom + 4;
+  if (y + fh > vh - 8) y = Math.max(8, r.top - fh - 4);
+  if (y + fh > vh - 8) y = Math.max(8, vh - fh - 8);
+  fly.style.left = clamp(x, 8, Math.max(8, vw - fw - 8)) + 'px';
+  fly.style.top = y + 'px';
+  return { close: closeFlyout, el: fly };
+}
+
 export function openDialog({ title, body, buttons = [], wide = false, dismissible = true, onClose }) {
   closeFlyout();
   const smoke = h('div', { class: 'dialog-smoke' });

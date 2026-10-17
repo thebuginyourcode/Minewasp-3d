@@ -1,5 +1,6 @@
-import { h, icon, iconButton, openMenu, combo } from './ui.js';
-import { clamp, TRANSITION_GROUPS } from './util.js';
+import { h, icon, iconButton, openMenu } from './ui.js';
+import { openEasePicker, curveIcon, shortLabel } from './ease.js';
+import { clamp } from './util.js';
 import { flattenRows, projectEnd } from './project.js';
 
 const ROW_H = 32;
@@ -47,13 +48,10 @@ export class TimelinePanel {
     });
     this.frameInput.addEventListener('focus', () => setTimeout(() => this.frameInput.select(), 0));
     this.endLabel = h('span', {});
-    this.transCombo = combo({
-      value: 'linear',
-      options: TRANSITION_GROUPS.map((g) => ({ group: g.label, items: g.items.map((i) => ({ value: i.id, label: i.label })) })),
-      onChange: (v) => a.setTransitionForSelection(v),
-    });
-    this.transCombo.el.style.flex = '0 0 180px';
-    this.transCombo.el.title = 'Keyframe transition';
+    this.easeLabel = h('span', {});
+    this.easeBtn = h('button', { class: 'btn-ghost ease-button', type: 'button', title: 'Keyframe easing', 'aria-label': 'Keyframe easing',
+      onclick: (e) => openEasePicker(e.currentTarget, a.currentTransition(), (v) => a.setTransitionForSelection(v)) },
+    curveIcon('linear'), this.easeLabel);
 
     const toolbar = h('div', { class: 'tl-toolbar' },
       iconButton('skipStart', 'Go to start (Home)', () => a.setFrame(0)),
@@ -70,7 +68,7 @@ export class TimelinePanel {
       iconButton('copy', 'Copy keyframes', () => a.copyKeys()),
       iconButton('paste', 'Paste keyframes at current frame', () => a.pasteKeys()),
       h('span', { class: 'divider' }),
-      this.transCombo.el,
+      this.easeBtn,
       h('span', { class: 'spacer' }),
       iconButton('more', 'Timeline options', (e) => this.optionsMenu(e.currentTarget)),
     );
@@ -201,7 +199,12 @@ export class TimelinePanel {
     this.loopBtn.classList.toggle('active', a.loop);
     if (document.activeElement !== this.frameInput) this.frameInput.value = Math.floor(a.frame);
     this.endLabel.textContent = '/ ' + projectEnd(a.project);
-    this.transCombo.set(a.currentTransition());
+    const tr = a.currentTransition();
+    if (this.easeBtn.dataset.t !== tr) {
+      this.easeBtn.dataset.t = tr;
+      this.easeBtn.querySelector('svg').replaceWith(curveIcon(tr));
+      this.easeLabel.textContent = shortLabel(tr);
+    }
   }
 
   /* ---------- Track geometry ---------- */

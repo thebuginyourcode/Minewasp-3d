@@ -14,11 +14,12 @@ It ships as a native Android and iOS app built with [Capacitor](https://capacito
 - Drag keyframes to retime them, multi-select, copy and paste (into another object of the same type), and delete
 - Playback with looping, scrubbing, jump to previous or next keyframe, and frame-accurate stepping
 - Pinch to zoom the timeline, drag to pan, long-press for context menus
+- Visual easing: one-tap Linear / Ease in / Ease out / In-out / Instant buttons with a curve family picker, a full curve grid, and "use for whole object"
 - Parenting: attach any object to another object or to a body part, such as a sword in a hand
 - Full undo and redo
 
 **Built-in models**
-- Characters: Classic, Slim, Knight, Explorer, Scientist, Villager. Characters accept custom 64×64 or legacy 64×32 skin PNGs.
+- Characters: Classic, Slim, Knight, Explorer, Scientist, Villager. Characters can be **segmented** (upper and lower arms and legs as separate parts) or use single bendable limbs, and you can switch at any time without losing animation. Import skin PNGs (64×64 or legacy 64×32, slim arms detected automatically) or fetch any Minecraft Java player's skin by username; imported skins are kept in a "Your skins" list.
 - Mobs: Zombie, Skeleton, Creeper, Enderman, Spider, Slime, Pig, Cow, Sheep, Chicken, Wolf, Bee
 - 23 blocks, including grass, stone, logs, glass, leaves, TNT, ores and wool. Glowstone is emissive.
 - 16 items (swords, pickaxes, axes, food, gems), rendered as extruded pixel sprites like in-game
@@ -37,7 +38,7 @@ The download is pinned to 1.21.4 because its entity textures match the built-in 
 
 **Viewport**
 - Touch orbit, pan and pinch-zoom
-- Move, rotate and scale gizmos in local or world space, with snapping
+- Move, rotate and scale gizmos in local or world space, with snapping and X / Y / Z axis lock; the rotate gizmo has finger-sized rings and no free-tumble handle
 - Tap to select an object or one of its body parts
 - Look through any camera. While looking through a camera, orbiting moves the camera and keys it.
 - Environment: sky color, fog, ground block, sun direction and strength, ambient light, shadows

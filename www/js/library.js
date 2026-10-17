@@ -3,6 +3,10 @@ import { CATEGORIES, CATALOG } from './models.js';
 
 const thumbCache = new Map();
 
+export function clearThumbnails() {
+  thumbCache.clear();
+}
+
 export function openLibrary(app, initialCat) {
   let cat = initialCat || sessionStorage.getItem('mw.libcat') || 'characters';
   let query = '';

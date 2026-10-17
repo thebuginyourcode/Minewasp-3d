@@ -210,20 +210,18 @@ export function paintHumanSkin(variant) {
   return p.finish();
 }
 
-/* Upgrade a legacy 64x32 skin to the 64x64 layout. */
+/*
+ * Prepares an imported skin. Legacy 64x32 skins are placed in the top half of a
+ * square canvas so the left limbs fall back to mirrored right limbs, as in vanilla.
+ * HD skins keep their native resolution.
+ */
 export function normalizeSkinCanvas(img) {
   const c = document.createElement('canvas');
-  c.width = 64; c.height = 64;
+  c.width = img.width;
+  c.height = img.width;
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  if (img.height === img.width / 2) {
-    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 64, 32);
-    // Copy right leg/arm into the left limb slots.
-    ctx.drawImage(c, 0, 16, 16, 16, 16, 48, 16, 16);
-    ctx.drawImage(c, 40, 16, 16, 16, 32, 48, 16, 16);
-  } else {
-    ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, 64, 64);
-  }
+  ctx.drawImage(img, 0, 0);
   return c;
 }
 

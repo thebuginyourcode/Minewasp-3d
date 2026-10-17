@@ -26,7 +26,17 @@ It ships as a native Android and iOS app built with [Capacitor](https://capacito
 - Shapes: cube, sphere, cylinder, cone, surface, torus, optionally textured with any block
 - Cameras, point lights and spot lights
 
-Arms, legs and torsos bend at the elbow, knee and waist. All textures are original pixel art generated in code.
+Every model uses vanilla Minecraft geometry (box sizes, pivots, rest poses and UV layouts), so official textures map exactly. Arms, legs and torsos bend at the elbow, knee and waist.
+
+**Official Minecraft textures**
+The app does not include Mojang's textures, because they can't be redistributed. Instead you can import your own copy:
+
+1. Open **Scene › Minecraft textures › Import .jar or pack**, or **File › Import Minecraft textures**.
+2. Pick your Minecraft Java Edition client jar (`.minecraft/versions/<version>/<version>.jar`) or any resource pack `.zip`.
+
+The textures are read on the device and stored in app storage. Characters (Steve and Alex skins), mobs, blocks (with grass, foliage and water tints) and items switch to the official art. Without an import, the app uses its own procedurally drawn textures in the same layouts.
+
+Cow, pig and chicken use their classic texture files (`cow.png`, `pig.png`, `chicken.png`), so these three fall back to the built-in art with packs from 1.21.5 or later, where those mobs were remodeled.
 
 **Viewport**
 - Touch orbit, pan and pinch-zoom
@@ -55,11 +65,16 @@ www/                 The app (plain ES modules, no build step)
   js/models.js       Model definitions, geometry builder and library catalog
   js/textures.js     Procedural skins, block, item and mob textures
   js/native.js       Capacitor bridge (Filesystem, Share, StatusBar, App)
+  js/pack.js         Imports textures from a Minecraft .jar or resource pack
   vendor/three/      Three.js r170 (MIT)
 android/             Native Android project (Capacitor)
 ios/                 Native iOS project (Capacitor)
 tools/make-icons.mjs Regenerates app icons and splash screens
 ```
+
+## Download
+
+Every push to `main` builds a debug APK with GitHub Actions and publishes it under **Releases** as *Minewasp 3D build N*. To install it, open the `.apk` on your Android phone and allow installs from that source when prompted.
 
 ## Building
 

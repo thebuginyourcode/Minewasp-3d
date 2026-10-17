@@ -223,6 +223,21 @@ export class ScenePanel {
     this.app = app;
   }
 
+  texturesSection() {
+    const a = this.app;
+    const st = a.textureStatus();
+    return section('Minecraft textures', [
+      h('div', { class: 'field-caption', style: { color: 'var(--text-1)', fontSize: '13px' } }, st ? st.title : 'Built-in textures'),
+      h('div', { class: 'field-caption' }, st
+        ? st.detail
+        : 'Import your own Minecraft Java Edition .jar or a resource pack to use the official textures. Files stay on this device.'),
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn' + (st ? '' : ' primary'), type: 'button', onclick: () => a.importTextures() }, icon('import'), st ? 'Replace' : 'Import .jar or pack'),
+        st ? h('button', { class: 'btn', type: 'button', onclick: () => a.removeTextures() }, icon('close'), 'Remove') : null),
+      h('div', { class: 'field-caption' }, 'The game .jar is in .minecraft/versions/<version>/<version>.jar.'),
+    ], { id: 'mctextures', store });
+  }
+
   render() {
     const a = this.app;
     const p = a.project;
@@ -262,6 +277,7 @@ export class ScenePanel {
         fieldRow('Ground block', combo({ value: s.groundBlock, options: groundBlocks.map((b) => ({ value: b.id, label: b.name })), onChange: set('groundBlock') }).el),
         toggle({ checked: a.engine.showGrid, label: 'Show grid in editor', onChange: (v) => a.setGrid(v) }).el,
       ], { id: 'environment', store }),
+      this.texturesSection(),
       section('Lighting', [
         fieldRow('Sun direction', slider({ value: s.sunYaw, min: 0, max: 360, step: 1, dp: 0, ...live('sunYaw') }).el),
         fieldRow('Sun height', slider({ value: s.sunPitch, min: 5, max: 90, step: 1, dp: 0, ...live('sunPitch') }).el),

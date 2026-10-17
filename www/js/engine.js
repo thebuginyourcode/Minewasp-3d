@@ -3,7 +3,7 @@ import { TransformControls } from '../vendor/three/controls/TransformControls.js
 import { OrbitControls } from '../vendor/three/controls/OrbitControls.js';
 import { DEG, clamp, hexToRgb, rgbToHex } from './util.js';
 import {
-  getModelDef, getModelTexture, buildModel, blockGeometry, blockMaterial, itemGeometry, getItemTexture,
+  getModelDef, getModelTextures, buildModel, blockGeometry, blockMaterial, itemGeometry, getItemTexture,
   modelMaterial, buildScenery, getBlockFaceTexture, BLOCK_MAP,
 } from './models.js';
 import { normalizeSkinCanvas } from './textures.js';
@@ -65,12 +65,12 @@ export function buildVisual(tl, skinCanvas) {
   switch (tl.type) {
     case 'model': {
       const def = getModelDef(tl);
-      const tex = getModelTexture(tl, skinCanvas);
-      const { root, parts } = buildModel(def, tex);
+      const texs = getModelTextures(tl, skinCanvas);
+      const { root, parts } = buildModel(def, texs);
       root.traverse((o) => { if (o.isMesh) o.userData.ownGeo = true; });
       out.group.add(root);
       out.parts = parts;
-      out.ownedTexture = tex.owned ? tex.texture : null;
+      out.ownedTexture = texs.main?.owned ? texs.main.texture : null;
       break;
     }
     case 'block': {
@@ -275,6 +275,13 @@ export class Engine {
   }
 
   /* ---------- Settings ---------- */
+
+  /* Forces textures to be rebuilt, e.g. after importing official textures. */
+  refreshTextures() {
+    this.groundBlock = null;
+    this.applySettings(this.app.project.settings);
+    this.rebuild();
+  }
 
   applySettings(s) {
     this.scene.background = new THREE.Color(s.sky);

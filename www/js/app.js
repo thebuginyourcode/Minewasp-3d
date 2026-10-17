@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Engine } from './engine.js';
 import { TimelinePanel } from './timeline.js';
 import { PropertiesPanel, ScenePanel } from './properties.js';
-import { openLibrary } from './library.js';
+import { openLibrary, clearThumbnails } from './library.js';
 import {
   h, icon, iconButton, openMenu, closeFlyout, openDialog, confirmDialog, promptDialog, toast, combo, numberBox, fieldRow,
 } from './ui.js';
@@ -11,7 +11,8 @@ import {
   serialize, deserialize, projectEnd, defaults, rootOf, isDescendant,
 } from './project.js';
 import { debounce, DEG, TRANSITION_GROUPS } from './util.js';
-import { CATALOG } from './models.js';
+import { CATALOG, texturePaths, clearTextureCache } from './models.js';
+import { initPack, importPack, clearPack, packInfo } from './pack.js';
 import * as native from './native.js';
 import { ZipWriter } from './zip.js';
 
@@ -207,6 +208,8 @@ class App {
       'sep',
       { label: 'Import project file…', icon: 'import', action: () => this.importProjectFile() },
       { label: 'Export project file…', icon: 'share', action: () => this.exportProjectFile() },
+      'sep',
+      { label: 'Import Minecraft textures…', icon: 'cube', action: () => this.importTextures() },
     ]);
   }
 
@@ -829,6 +832,48 @@ class App {
     } catch (e) { toast('Export failed: ' + (e.message || e), 'error'); }
   }
 
+  /* ---------- Minecraft textures ---------- */
+
+  texturesChanged() {
+    clearTextureCache();
+    clearThumbnails();
+    this.engine.refreshTextures();
+    if (this.side === 'scene') this.scenePanel.render();
+  }
+
+  async importTextures() {
+    const file = await native.pickFile('.jar,.zip,application/java-archive,application/zip,application/x-zip-compressed');
+    if (!file) return;
+    const bar = h('div');
+    const dlg = openDialog({
+      title: 'Importing textures', dismissible: false,
+      body: h('div', {}, h('p', { class: 'dialog-text', style: { margin: 0 } }, `Reading ${file.name}\u2026`), h('div', { class: 'progress' }, bar)),
+    });
+    try {
+      const m = await importPack(file, texturePaths(), (p) => { bar.style.width = p * 100 + '%'; });
+      dlg.close();
+      this.texturesChanged();
+      toast(`Using ${m.count} textures from ${m.version ? 'Minecraft ' + m.version : m.name}.`);
+    } catch (e) {
+      dlg.close();
+      toast(e.message || String(e), 'error');
+    }
+  }
+
+  async removeTextures() {
+    const ok = await confirmDialog('Remove Minecraft textures', 'Switch back to the built-in textures? You can import them again at any time.', 'Remove');
+    if (!ok) return;
+    await clearPack();
+    this.texturesChanged();
+    toast('Using built-in textures.');
+  }
+
+  textureStatus() {
+    const m = packInfo();
+    if (!m) return null;
+    return { title: m.version ? `Minecraft ${m.version}` : m.name, detail: `${m.count} textures from ${m.name}` };
+  }
+
   /* ---------- Rendering ---------- */
 
   renderOptions() {
@@ -1090,8 +1135,9 @@ function buildDemo() {
   return p;
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   try {
+    await initPack();
     window.minewasp = new App();
   } catch (e) {
     document.body.innerHTML = '';

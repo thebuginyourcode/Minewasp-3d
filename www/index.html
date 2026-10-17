@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <title>Minewasp 3D</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="titlebar">
+      <div class="titlebar-brand">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 20.5 7v10L12 21.5 3.5 17V7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M3.5 7 12 11.5 20.5 7M12 11.5v10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span class="brand-name">Minewasp 3D</span>
+        <span class="titlebar-sep"></span>
+        <button class="project-name" id="projectName" type="button"></button>
+      </div>
+      <nav class="commandbar" id="commandbar"></nav>
+    </header>
+
+    <main class="workspace" id="workspace">
+      <section class="viewport-area" id="viewportArea">
+        <div class="viewport" id="viewport"></div>
+        <div class="vp-toolbar vp-toolbar-left" id="vpToolsLeft"></div>
+        <div class="vp-toolbar vp-toolbar-right" id="vpToolsRight"></div>
+        <div class="vp-status" id="vpStatus"></div>
+      </section>
+
+      <div class="dock-tabs" id="dockTabs" role="tablist"></div>
+
+      <section class="pane pane-timeline" id="paneTimeline" data-pane="timeline"></section>
+      <aside class="pane pane-side" id="paneSide">
+        <div class="pivot" id="sidePivot" role="tablist"></div>
+        <div class="pane-body" id="paneProps" data-pane="properties"></div>
+        <div class="pane-body" id="paneScene" data-pane="scene"></div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="layer" class="layer"></div>
+  <input type="file" id="filePicker" hidden>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@ import { TimelinePanel } from './timeline.js';
 import { PropertiesPanel, ScenePanel } from './properties.js';
 import { openLibrary, clearThumbnails } from './library.js';
 import {
-  h, icon, iconButton, openMenu, closeFlyout, openDialog, confirmDialog, promptDialog, toast, combo, numberBox, fieldRow,
+  h, icon, iconButton, openMenu, closeFlyout, openDialog, confirmDialog, promptDialog, toast, combo, numberBox, fieldRow, progressToast,
 } from './ui.js';
 import {
   newProject, createTimeline, findTl, setValues, ensureKey, keyAt, sortKeys, deleteTimeline, duplicateTimeline,
@@ -17,6 +17,10 @@ import * as native from './native.js';
 import { ZipWriter } from './zip.js';
 
 const $ = (id) => document.getElementById(id);
+
+/* Official textures come from this game version: its entity layouts match the built-in models. */
+const MC_VERSION = '1.21.4';
+const MC_MANIFEST = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 
 class App {
   constructor() {
@@ -54,6 +58,7 @@ class App {
     this.afterLoad();
 
     native.initNativeChrome({ onBack: () => this.handleBack() });
+    setTimeout(() => this.offerTextures(), 800);
     let last = performance.now();
     const loop = (t) => {
       requestAnimationFrame(loop);
@@ -209,7 +214,8 @@ class App {
       { label: 'Import project file…', icon: 'import', action: () => this.importProjectFile() },
       { label: 'Export project file…', icon: 'share', action: () => this.exportProjectFile() },
       'sep',
-      { label: 'Import Minecraft textures…', icon: 'cube', action: () => this.importTextures() },
+      { label: 'Download Minecraft textures', icon: 'cube', action: () => this.downloadTextures() },
+      { label: 'Import textures from file…', icon: 'import', action: () => this.importTextures() },
     ]);
   }
 
@@ -858,6 +864,58 @@ class App {
       dlg.close();
       toast(e.message || String(e), 'error');
     }
+  }
+
+  /*
+   * Downloads the Minecraft client from Mojang's servers onto this device and
+   * extracts its textures. Nothing is redistributed with the app.
+   */
+  async downloadTextures({ auto = false } = {}) {
+    if (this.downloadingTextures) return;
+    this.downloadingTextures = true;
+    const pt = progressToast(`Downloading Minecraft ${MC_VERSION} textures`);
+    try {
+      const json = async (url) => JSON.parse(await (await native.download(url)).text());
+      const manifest = await json(window.__mwManifestUrl || MC_MANIFEST);
+      const entry = manifest.versions?.find((v) => v.id === MC_VERSION);
+      if (!entry) throw new Error(`Minecraft ${MC_VERSION} is not listed by Mojang.`);
+      const client = (await json(entry.url)).downloads?.client;
+      if (!client?.url) throw new Error('Mojang did not provide a download for this version.');
+      const jar = await native.download(client.url, (p) => pt.set(p * 0.9));
+      if (client.sha1 && crypto.subtle) {
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', await jar.arrayBuffer()));
+        const hex = [...digest].map((b) => b.toString(16).padStart(2, '0')).join('');
+        if (hex !== client.sha1) throw new Error('The download was corrupted. Please try again.');
+      }
+      pt.text('Extracting textures');
+      const m = await importPack(new File([jar], `minecraft-${MC_VERSION}.jar`), texturePaths(), (p) => pt.set(0.9 + p * 0.1));
+      pt.close();
+      this.texturesChanged();
+      toast(`Using official Minecraft ${m.version || MC_VERSION} textures.`);
+    } catch (e) {
+      pt.close();
+      const offline = e instanceof TypeError || /network|internet|offline|failed to fetch/i.test(String(e.message));
+      toast(offline ? 'Couldn\u2019t reach Mojang\u2019s servers. Check your connection and try again.' : (e.message || String(e)), 'error');
+      if (auto) localStorage.removeItem('mw.texprompt');
+    } finally {
+      this.downloadingTextures = false;
+    }
+  }
+
+  /* Offers the official textures once, on first launch. */
+  offerTextures() {
+    if (packInfo()) return;
+    try { if (localStorage.getItem('mw.texprompt')) return; localStorage.setItem('mw.texprompt', 'shown'); } catch { return; }
+    openDialog({
+      title: 'Use official Minecraft textures?',
+      body: h('div', {},
+        h('p', { class: 'dialog-text' }, `Minewasp can download Minecraft ${MC_VERSION} from Mojang\u2019s servers (about 30 MB) and use its textures for characters, mobs, blocks and items.`),
+        h('p', { class: 'dialog-text', style: { margin: 0 } }, 'Textures are stored on this device only. You can change this later in Scene \u203a Minecraft textures.')),
+      buttons: [
+        { label: 'Download', primary: true, action: () => { this.downloadTextures({ auto: true }); } },
+        { label: 'Not now' },
+      ],
+    });
   }
 
   async removeTextures() {

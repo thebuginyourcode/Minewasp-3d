@@ -213,11 +213,27 @@ export function promptDialog(title, value, okLabel = 'Save') {
 
 let toastTimer = 0;
 export function toast(text, kind = 'info') {
-  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  document.querySelectorAll('.toast:not(.progress-toast)').forEach((t) => t.remove());
   const t = h('div', { class: 'toast ' + kind, role: 'status' }, icon(kind === 'error' ? 'error' : 'info'), h('span', {}, text));
   layer().append(t);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.remove(), 2800);
+}
+
+/* Persistent, non-blocking progress notification. */
+export function progressToast(text) {
+  const bar = h('div');
+  const label = h('span', {}, text);
+  const pct = h('span', { class: 'pt-pct' }, '0%');
+  const t = h('div', { class: 'toast progress-toast', role: 'status' },
+    h('div', { class: 'pt-row' }, icon('import'), label, pct),
+    h('div', { class: 'progress' }, bar));
+  layer().append(t);
+  return {
+    set(p) { const v = Math.round(Math.max(0, Math.min(1, p)) * 100); bar.style.width = v + '%'; pct.textContent = v + '%'; },
+    text(s) { label.textContent = s; },
+    close() { t.remove(); },
+  };
 }
 
 /* ---------- Form controls ---------- */

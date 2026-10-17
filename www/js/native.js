@@ -52,6 +52,48 @@ export async function saveExport(blob, filename, title = 'Export') {
   return filename;
 }
 
+/*
+ * Downloads a URL and resolves with a Blob. In the app the download runs
+ * natively (no CORS limits) into the cache, then is read back through the
+ * WebView's local file URL so large files never cross the JS bridge as base64.
+ */
+export async function download(url, onProgress) {
+  if (isNative()) {
+    const fs = plugin('Filesystem');
+    const path = 'download-' + Date.now();
+    let handle = null;
+    if (onProgress) {
+      handle = await fs.addListener('progress', (p) => {
+        if (p.url === url && p.contentLength > 0) onProgress(p.bytes / p.contentLength);
+      });
+    }
+    try {
+      const res = await fs.downloadFile({ url, path, directory: 'CACHE', progress: !!onProgress });
+      const local = await fetch(cap().convertFileSrc(res.path));
+      if (!local.ok) throw new Error('Could not read the downloaded file.');
+      return await local.blob();
+    } finally {
+      handle?.remove?.();
+      fs.deleteFile({ path, directory: 'CACHE' }).catch(() => {});
+    }
+  }
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed (${res.status}).`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  if (!onProgress || !total || !res.body) return res.blob();
+  const reader = res.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    got += value.length;
+    onProgress(got / total);
+  }
+  return new Blob(chunks);
+}
+
 /* Opens the system file chooser and resolves with a File (or null). */
 export function pickFile(accept) {
   return new Promise((resolve) => {

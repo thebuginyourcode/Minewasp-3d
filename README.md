@@ -29,14 +29,11 @@ It ships as a native Android and iOS app built with [Capacitor](https://capacito
 Every model uses vanilla Minecraft geometry (box sizes, pivots, rest poses and UV layouts), so official textures map exactly. Arms, legs and torsos bend at the elbow, knee and waist.
 
 **Official Minecraft textures**
-The app does not include Mojang's textures, because they can't be redistributed. Instead you can import your own copy:
+On first launch the app offers to download the official textures. It fetches the Minecraft 1.21.4 client from Mojang's servers onto the device (about 30 MB, checked against Mojang's SHA-1), extracts the textures it needs and stores them locally. The repository and APK contain no Mojang assets.
 
-1. Open **Scene › Minecraft textures › Import .jar or pack**, or **File › Import Minecraft textures**.
-2. Pick your Minecraft Java Edition client jar (`.minecraft/versions/<version>/<version>.jar`) or any resource pack `.zip`.
+You can also do this at any time from **Scene › Minecraft textures** or the **File** menu, or import a `.jar` or resource pack `.zip` you already have. Characters (Steve and Alex skins), mobs, blocks (with grass, foliage and water tints) and items switch to the official art. Until then the app uses its own procedurally drawn textures in the same layouts.
 
-The textures are read on the device and stored in app storage. Characters (Steve and Alex skins), mobs, blocks (with grass, foliage and water tints) and items switch to the official art. Without an import, the app uses its own procedurally drawn textures in the same layouts.
-
-Cow, pig and chicken use their classic texture files (`cow.png`, `pig.png`, `chicken.png`), so these three fall back to the built-in art with packs from 1.21.5 or later, where those mobs were remodeled.
+The download is pinned to 1.21.4 because its entity textures match the built-in models exactly. If you import a pack from 1.21.5 or later, cow, pig and chicken keep the built-in art, since those mobs were remodeled.
 
 **Viewport**
 - Touch orbit, pan and pinch-zoom

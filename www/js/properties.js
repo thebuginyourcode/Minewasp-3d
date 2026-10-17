@@ -230,11 +230,11 @@ export class ScenePanel {
       h('div', { class: 'field-caption', style: { color: 'var(--text-1)', fontSize: '13px' } }, st ? st.title : 'Built-in textures'),
       h('div', { class: 'field-caption' }, st
         ? st.detail
-        : 'Import your own Minecraft Java Edition .jar or a resource pack to use the official textures. Files stay on this device.'),
+        : 'Download the official textures from Mojang (about 30 MB, stored on this device), or import a .jar or resource pack you already have.'),
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn' + (st ? '' : ' primary'), type: 'button', onclick: () => a.importTextures() }, icon('import'), st ? 'Replace' : 'Import .jar or pack'),
+        st ? null : h('button', { class: 'btn primary', type: 'button', onclick: () => a.downloadTextures() }, icon('import'), 'Download'),
+        h('button', { class: 'btn', type: 'button', onclick: () => a.importTextures() }, icon('folder'), st ? 'Replace' : 'From file'),
         st ? h('button', { class: 'btn', type: 'button', onclick: () => a.removeTextures() }, icon('close'), 'Remove') : null),
-      h('div', { class: 'field-caption' }, 'The game .jar is in .minecraft/versions/<version>/<version>.jar.'),
     ], { id: 'mctextures', store });
   }
 

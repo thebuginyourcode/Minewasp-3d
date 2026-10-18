@@ -11,7 +11,7 @@ It ships as a native Android and iOS app built with [Capacitor](https://capacito
 - Keyframes for position, rotation, scale, limb bend, opacity, color tint, brightness and visibility
 - Editing any value at the current frame creates a keyframe automatically
 - 32 transitions per keyframe: linear, instant, and ease in / out / in-out for sine, quad, cubic, quart, quint, expo, circ, back, elastic and bounce
-- Drag keyframes to retime them, double-tap an empty spot on a track to add a keyframe there, multi-select, copy and paste (into another object of the same type), and delete
+- Drag keyframes to retime them, double-tap an empty spot on a track to add a keyframe there, clear a whole lane from its long-press menu, multi-select, copy and paste (into another object of the same type), and delete
 - Playback with looping, scrubbing, jump to previous or next keyframe, and frame-accurate stepping
 - Pinch to zoom the timeline, drag to pan, long-press for context menus
 - Visual easing: one-tap Linear / Ease in / Ease out / In-out / Instant buttons with a curve family picker, a full curve grid, and "use for whole object"
@@ -19,7 +19,7 @@ It ships as a native Android and iOS app built with [Capacitor](https://capacito
 - Full undo and redo
 
 **Built-in models**
-- Characters: Classic, Slim, Knight, Explorer, Scientist, Villager. Characters can be **segmented** (upper and lower arms and legs as separate parts) or use single bendable limbs, and you can switch at any time without losing animation. Import skin PNGs (64×64 or legacy 64×32, slim arms detected automatically) or fetch any Minecraft Java player's skin by username; imported skins are kept in a "Your skins" list.
+- Characters: Classic, Slim, Knight, Explorer, Scientist, Villager. Characters can be **segmented** (upper and lower arms and legs as separate parts, with joints that stay closed when bent) or use single bendable limbs, and you can switch at any time without losing animation. Import skin PNGs (64×64 or legacy 64×32, slim arms detected automatically) or fetch any Minecraft Java player's skin by username; imported skins are kept in a "Your skins" list.
 - Mobs: Zombie, Skeleton, Creeper, Enderman, Spider, Slime, Pig, Cow, Sheep, Chicken, Wolf, Bee
 - 23 blocks, including grass, stone, logs, glass, leaves, TNT, ores and wool. Glowstone is emissive.
 - 16 items (swords, pickaxes, axes, food, gems), rendered as extruded pixel sprites like in-game
@@ -39,7 +39,7 @@ The download is pinned to 1.21.4 because its entity textures match the built-in 
 **Viewport**
 - Thumb-zone action bar: step frames (hold to repeat), pick X / Y / Z, drag the pad to rotate, move or scale that axis precisely (double-tap the pad to reset), and tap the large key button to add a keyframe (hold it to key or clear a whole character)
 - Touch orbit, pan and pinch-zoom
-- Move, rotate and scale gizmos in local or world space, with snapping and axis lock; on touch screens the handles are thicker, translate arrows grab along their full length, and the error-prone plane and free-tumble handles are removed
+- Touch-first move, rotate and scale gizmo: handles never hide or flicker, are hit-tested in screen space with finger-sized tolerance, and drag along their on-screen direction; rotation rings each edit exactly one of the X / Y / Z values; tapping through a handle still selects what is behind it
 - Resizable bottom panel on phones: drag the tab strip up or down, or double-tap its grip
 - Tap to select an object or one of its body parts
 - Look through any camera. While looking through a camera, orbiting moves the camera and keys it.
@@ -58,7 +58,9 @@ www/                 The app (plain ES modules, no build step)
   index.html
   css/app.css        Fluent-style dark theme
   js/app.js          App controller: history, menus, files, rendering
-  js/engine.js       Three.js scene, gizmos, camera views, export rendering
+  js/engine.js       Three.js scene, camera views, export rendering
+  js/gizmo.js        Touch-first transform gizmo
+  js/actionbar.js    Viewport action bar (frame step, axis pad, key button)
   js/timeline.js     Timeline panel (canvas tracks and object tree)
   js/properties.js   Properties and Scene panels
   js/project.js      Project data model, keyframes and interpolation

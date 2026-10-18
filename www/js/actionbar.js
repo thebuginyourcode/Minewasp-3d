@@ -74,12 +74,12 @@ export class ActionBar {
   target() {
     const a = this.app;
     const tl = this.selected();
-    if (!tl) return { reason: 'Select a part to adjust it here' };
-    if (a.tool === 'select') return { reason: 'Choose Move, Rotate or Scale above' };
-    if (a.engine.viewCamId === tl.id) return { reason: 'Orbit the view to move this camera' };
+    if (!tl) return { reason: 'Select a part' };
+    if (a.tool === 'select') return { reason: 'Pick a tool above' };
+    if (a.engine.viewCamId === tl.id) return { reason: 'Orbit to move camera' };
     if (!this.axis) {
       if (a.tool === 'scale') return { tl, keys: ['sx', 'sy', 'sz'], tool: 'Scale', axis: 'all' };
-      return { reason: 'Pick X, Y or Z, then drag here' };
+      return { reason: 'Pick X, Y or Z' };
     }
     return { tl, keys: [PREFIX[a.tool] + this.axis], tool: TOOL_LABEL[a.tool], axis: this.axis.toUpperCase() };
   }

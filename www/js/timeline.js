@@ -3,7 +3,7 @@ import { openEasePicker, curveIcon, shortLabel } from './ease.js';
 import { clamp } from './util.js';
 import { flattenRows, projectEnd } from './project.js';
 
-const ROW_H = window.matchMedia('(pointer: coarse)').matches ? 40 : 32;
+const ROW_H = window.matchMedia('(pointer: coarse)').matches ? 36 : 32;
 const RULER_H = 28;
 const PAD = 14;
 const LONG_PRESS = 480;
@@ -63,10 +63,10 @@ export class TimelinePanel {
       h('span', { class: 'divider' }),
       h('label', { class: 'frame-box' }, 'Frame', this.frameInput, this.endLabel),
       h('span', { class: 'divider' }),
-      iconButton('keyAdd', 'Add keyframe (K)', () => a.addKeyframe()),
-      iconButton('keyRemove', 'Delete keyframes (Del)', () => a.deleteSelectedKeys()),
-      iconButton('copy', 'Copy keyframes', () => a.copyKeys()),
-      iconButton('paste', 'Paste keyframes at current frame', () => a.pasteKeys()),
+      iconButton('keyAdd', 'Add keyframe (K)', () => a.addKeyframe(), { cls: 'tl-wide' }),
+      iconButton('keyRemove', 'Delete keyframes (Del)', () => a.deleteSelectedKeys(), { cls: 'tl-wide' }),
+      iconButton('copy', 'Copy keyframes', () => a.copyKeys(), { cls: 'tl-wide' }),
+      iconButton('paste', 'Paste keyframes at current frame', () => a.pasteKeys(), { cls: 'tl-wide' }),
       h('span', { class: 'divider' }),
       this.easeBtn,
       h('span', { class: 'spacer' }),
@@ -98,6 +98,7 @@ export class TimelinePanel {
       { label: 'Fit project', icon: 'focus', action: () => this.fit() },
       'sep',
       { label: 'Select all keyframes', icon: 'keyframe', action: () => a.selectAllKeys() },
+      { label: 'Clear selected lane', icon: 'keyRemove', disabled: !a.selectedId, action: () => a.clearLane(a.selectedId) },
       { label: 'Multi-select', icon: 'check', checked: a.multiSelect, action: () => { a.multiSelect = !a.multiSelect; } },
       'sep',
       { label: 'Expand all', icon: 'chevronDown', action: () => a.setExpandedAll(true) },

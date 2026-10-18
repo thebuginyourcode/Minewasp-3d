@@ -18,6 +18,22 @@ import { firstPackImage, packImage } from './pack.js';
    ground at y = 0 (vanilla y = 24).
    ===================================================================== */
 
+/*
+ * A segment's hidden overlap into its neighbour across a joint: the neighbour's
+ * own geometry (so the texture matches), half the limb's thickness deep and
+ * inset slightly so it never z-fights when straight. When the joint bends, it
+ * swings out and fills the wedge-shaped gap that would otherwise open.
+ */
+function jointExtension(box, cut, dir) {
+  const ext = Math.min(box.size[0], box.size[2]) / 2;
+  return {
+    ...box,
+    inflate: (box.inflate || 0) - 0.04,
+    slice: dir === 'down' ? [cut - ext, cut] : [cut, cut + ext],
+    joint: true,
+  };
+}
+
 function convertModel({ textures, parts }) {
   const bones = [];
   const abs = {};
@@ -42,12 +58,15 @@ function convertModel({ textures, parts }) {
         seg: c.seg,
       };
     });
+    const extensions = [];
     for (const b of boxes) {
       if (!b.seg) continue;
       const mid = b.from[1] + b.size[1] / 2;
       b.slice = b.seg === 'upper' ? [mid, 1e9] : [-1e9, mid];
+      extensions.push(jointExtension(b, mid, b.seg === 'upper' ? 'down' : 'up'));
       delete b.seg;
     }
+    boxes.push(...extensions);
     let bend = null;
     if (p.bend) {
       const b0 = boxes[0];
@@ -894,6 +913,12 @@ export function buildModel(def, texs) {
       const fixed = bone.bend.part === 'lower' ? upper : lower;
       meshes.push(...meshesFor(boxes, bone.pivot, fixed, texs, anim));
       meshes.push(...meshesFor(boxes, bp, moving, texs, bendGroup));
+      // Overlaps across the bend so the joint stays closed when bent.
+      const solid = boxes.filter((b) => !b.joint);
+      const fixedDir = bone.bend.part === 'lower' ? 'down' : 'up';
+      const movingDir = fixedDir === 'down' ? 'up' : 'down';
+      meshes.push(...meshesFor(solid.map((b) => jointExtension(b, at, fixedDir)), bone.pivot, null, texs, anim));
+      meshes.push(...meshesFor(solid.map((b) => jointExtension(b, at, movingDir)), bp, null, texs, bendGroup));
       container = bendGroup;
       containerOrigin = bp;
     } else {

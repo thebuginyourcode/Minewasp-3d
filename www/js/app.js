@@ -280,6 +280,11 @@ class App {
     openMenu(anchor, [
       { label: 'Rename…', icon: 'rename', action: async () => { const n = await promptDialog('Rename', tl.name, 'Rename'); if (n && n.trim()) this.rename(id, n.trim()); } },
       { label: 'Focus', icon: 'focus', action: () => { this.select(id); this.engine.focusSelected(); } },
+      { label: tl.hidden ? 'Show' : 'Hide', icon: tl.hidden ? 'eye' : 'eyeOff', action: () => this.toggleHidden(id) },
+      'sep',
+      { label: 'Clear this lane', icon: 'keyRemove', disabled: !tl.keys.length, action: () => this.clearLane(id) },
+      ...(!isBone && this.project.timelines.some((t) => t.owner === id) ? [{ label: 'Clear lane + all parts', icon: 'trash', action: () => this.clearLane(id, true) }] : []),
+      'sep',
       ...(tl.type === 'camera' ? [{ label: this.engine.viewCamId === id ? 'Exit camera view' : 'Look through', icon: 'camera', action: () => this.setViewCamera(this.engine.viewCamId === id ? null : id) }] : []),
       ...(isBone
         ? [{ label: 'Reset at frame', icon: 'undo', action: () => this.resetPose(id) }, { label: 'Select owner', icon: 'person', action: () => this.select(tl.owner) }]
@@ -542,6 +547,24 @@ class App {
     this.mutate(() => {
       for (const t of group) { t.keys = t.keys.filter((k) => k.f !== f); this.selKeys.delete(t.id + '|' + f); }
     });
+  }
+
+  onSnapTick() { native.haptic('tick'); }
+
+  /* Removes every keyframe in a lane, optionally including the object's body parts. */
+  clearLane(id, withParts = false) {
+    const tl = findTl(this.project, id);
+    if (!tl) return;
+    const group = withParts && tl.type !== 'bone' ? [tl, ...this.project.timelines.filter((t) => t.owner === id)] : [tl];
+    const count = group.reduce((n, t) => n + t.keys.length, 0);
+    if (!count) { toast('This lane has no keyframes.'); return; }
+    this.mutate(() => {
+      for (const t of group) {
+        t.keys = [];
+        for (const k of [...this.selKeys]) if (k.startsWith(t.id + '|')) this.selKeys.delete(k);
+      }
+    });
+    toast(`Cleared ${count} keyframe${count > 1 ? 's' : ''}. Undo is in the top bar.`);
   }
 
   keyMenuToast(f) {

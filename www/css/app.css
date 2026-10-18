@@ -1164,3 +1164,61 @@ input[type="range"].slider::-moz-range-thumb {
 @media (max-width: 429px) {
   .vp-toolbar .vp-opt { display: none; }
 }
+
+/* ---------- Compact pass (overrides the touch sizing above) ---------- */
+:root { --titlebar-h: 44px; }
+@media (pointer: coarse) {
+  .btn, .combo select, .textbox, .numbox, .color-field { height: 36px; }
+  .numbox .nb-axis { width: 26px; }
+  .field-row { min-height: 36px; }
+  .section-head { height: 42px; font-size: 13px; }
+  .section-body { gap: 8px; padding-bottom: 12px; }
+  .menu-item { min-height: 40px; }
+  .pivot-item { height: 42px; }
+  .vp-toolbar .btn-ghost { height: 36px; min-width: 36px; }
+  .vp-toolbar .btn-ghost.icon-only { width: 36px; }
+  .tl-toolbar { height: 44px; }
+  .tl-toolbar .btn-ghost.icon-only { width: 38px; height: 38px; }
+  .tl-row { height: 36px; font-size: 13px; }
+  .tl-row .eye-btn { height: 32px; }
+  .tl-row .chev-btn { width: 26px; height: 32px; }
+  .frame-box { height: 34px; }
+  .toggle .track { width: 40px; height: 22px; border-radius: 11px; }
+  .toggle .track::after { top: 4px; left: 4px; width: 12px; height: 12px; }
+  .toggle input:checked + .track::after { transform: translateX(18px); }
+  .ease-kind { padding: 6px 2px 5px; }
+  .lib-nav-item { height: 40px; }
+}
+.ab-group { padding: 2px; border-radius: 10px; }
+.ab-group .btn-ghost { height: 38px; min-width: 38px; border-radius: 8px; }
+.ab-group .btn-ghost.icon-only { width: 38px; }
+.ab-pad { height: 38px; border-radius: 8px; font-size: 12px; }
+.ab-key { width: 48px; border-radius: 10px; }
+.ab-key svg { width: 22px; height: 22px; }
+.vp-status { bottom: 58px; }
+@media (max-width: 899px), (max-height: 599px) {
+  .dock-tabs .pivot-item { height: 40px; }
+  .dock-tabs { padding-top: 8px; }
+  .tl-toolbar .tl-wide { display: none; }
+  .vp-status { display: none; }
+  .prop-header { padding: 10px 14px 8px; }
+  .prop-header .ph-icon { width: 32px; height: 32px; }
+  .prop-header .ph-title { font-size: 16px; }
+  .section-head, .section-body { padding-left: 14px; padding-right: 14px; }
+}
+@media (max-width: 599px) {
+  .vp-actionbar { left: 6px; right: 6px; bottom: 6px; gap: 5px; }
+  .ab-group .btn-ghost.icon-only { width: 36px; min-width: 36px; }
+  .ab-group .btn-ghost.ab-axis { width: 32px; }
+  .ab-key { width: 46px; }
+  .vp-toolbar { top: 6px; }
+  .vp-toolbar-left { left: 6px; }
+  .vp-toolbar-right { right: 6px; }
+  .tl-list { width: 140px; }
+}
+
+@media (max-width: 599px) {
+  .tl-row .eye-btn:not(.off) { display: none; }
+  .tl-row { padding-right: 6px; }
+  .tl-list { width: 150px; }
+}

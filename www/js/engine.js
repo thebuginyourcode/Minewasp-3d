@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { TransformControls } from '../vendor/three/controls/TransformControls.js';
 import { OrbitControls } from '../vendor/three/controls/OrbitControls.js';
+import { Gizmo } from './gizmo.js';
 import { DEG, clamp, hexToRgb, rgbToHex } from './util.js';
 import {
   getModelDef, getModelTextures, buildModel, blockGeometry, blockMaterial, itemGeometry, getItemTexture,
@@ -182,14 +182,10 @@ export class Engine {
     this.workCam.position.set(120, 84, 176);
     this.proxyCam = new THREE.PerspectiveCamera(60, 1, 0.5, 8000);
 
-    // Transform gizmo first so it claims pointer events before the orbit controls.
     const coarse = window.matchMedia('(pointer: coarse)').matches;
-    this.transform = new TransformControls(this.workCam, r.domElement);
-    this.transform.setSpace('local');
-    this.transform.setSize(coarse ? 1.3 : 0.85);
-    this.gizmo = this.transform.getHelper();
-    scene.add(this.gizmo);
-    this.tuneGizmo(coarse);
+    // The gizmo listens in the capture phase, so it claims touches before orbiting.
+    this.gizmoCtl = new Gizmo(this);
+    scene.add(this.gizmoCtl.root);
 
     this.orbit = new OrbitControls(this.workCam, r.domElement);
     this.orbit.target.set(0, 16, 0);
@@ -200,14 +196,6 @@ export class Engine {
     this.orbit.maxDistance = 3000;
     this.orbit.zoomSpeed = 1.1;
     this.orbit.update();
-
-    this.transform.addEventListener('dragging-changed', (e) => {
-      this.orbit.enabled = !e.value;
-      if (e.value) this.app.beginEdit();
-      else this.app.endEdit();
-    });
-    this.transform.addEventListener('objectChange', () => this.onGizmoChange());
-    this.transform.addEventListener('change', () => { this.dirty = true; });
 
     this.orbitInteracting = false;
     this.orbit.addEventListener('start', () => {
@@ -264,64 +252,10 @@ export class Engine {
     this.resize();
   }
 
-  /*
-   * Makes the rotate gizmo predictable on touch screens: removes the free
-   * trackball sphere and the screen-space ring (both easy to grab by accident
-   * and they tumble a part on every axis) and widens the axis ring pickers.
-   */
-  tuneGizmo(coarse) {
-    const giz = this.transform._gizmo;
-    for (const group of [giz.gizmo.rotate, giz.picker.rotate, giz.helper?.rotate]) {
-      if (!group) continue;
-      for (const c of [...group.children]) if (c.name === 'E' || c.name === 'XYZE') group.remove(c);
-    }
-    // Translate: drop the
-    // tiny plane handles on touch screens, where they get grabbed by mistake.
-    if (coarse) {
-      for (const group of [giz.gizmo.translate, giz.picker.translate]) {
-        for (const c of [...group.children]) if (c.name === 'XY' || c.name === 'YZ' || c.name === 'XZ') group.remove(c);
-      }
-    }
-    // Two half-bars per axis (one per arrow), stopping short of the centre so the
-    // free-move handle and the other axes never overlap them.
-    const thick = coarse ? 0.3 : 0.2;
-    const axisIndex = { X: 0, Y: 1, Z: 2 };
-    for (const c of giz.picker.translate.children) {
-      if (c.name in axisIndex) {
-        const i = axisIndex[c.name];
-        c.geometry.computeBoundingBox();
-        const center = c.geometry.boundingBox.getCenter(new THREE.Vector3()).getComponent(i);
-        const size = [thick, thick, thick];
-        size[i] = 0.93;
-        const g = new THREE.BoxGeometry(...size);
-        const offset = [0, 0, 0];
-        offset[i] = Math.sign(center) * 0.585;
-        g.translate(...offset);
-        c.geometry.dispose();
-        c.geometry = g;
-      } else if (c.name === 'XYZ') {
-        c.geometry.dispose();
-        c.geometry = new THREE.OctahedronGeometry(coarse ? 0.16 : 0.2, 0);
-      }
-    }
-
-    const tube = coarse ? 0.22 : 0.14;
-    const rot = { X: [0, -Math.PI / 2, -Math.PI / 2], Y: [Math.PI / 2, 0, 0], Z: [0, 0, -Math.PI / 2] };
-    for (const c of giz.picker.rotate.children) {
-      if (!rot[c.name]) continue;
-      const g = new THREE.TorusGeometry(0.5, tube, 6, 32);
-      g.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot[c.name])));
-      c.geometry.dispose();
-      c.geometry = g;
-    }
-  }
-
   /* Restricts the gizmo to one axis ('x' | 'y' | 'z') or shows all (null). */
   setAxisLock(axis) {
     this.axisLock = axis;
-    this.transform.showX = !axis || axis === 'x';
-    this.transform.showY = !axis || axis === 'y';
-    this.transform.showZ = !axis || axis === 'z';
+    this.gizmoCtl.setAxisLock(axis);
     this.dirty = true;
   }
 
@@ -398,7 +332,7 @@ export class Engine {
 
   rebuild() {
     const project = this.app.project;
-    this.transform.detach();
+    this.gizmoCtl.detach();
     for (const child of [...this.world.children]) {
       this.world.remove(child);
       disposeObject(child);
@@ -508,9 +442,9 @@ export class Engine {
     const tl = node?.tl;
     const lockedByView = tl && tl.id === this.viewCamId;
     if (node && !lockedByView && this.tool !== 'select') {
-      this.transform.attach(node.anim);
+      this.gizmoCtl.attach(node.anim, tl);
     } else {
-      this.transform.detach();
+      this.gizmoCtl.detach();
     }
     this.selBox.visible = !!node && !lockedByView;
     if (node) this.selBox.setFromObject(node.anim);
@@ -519,43 +453,27 @@ export class Engine {
 
   setTool(tool) {
     this.tool = tool;
-    if (tool !== 'select') this.transform.setMode(tool);
+    if (tool !== 'select') this.gizmoCtl.setMode(tool);
     this.setSelected(this.selectedId);
   }
 
-  setSpace(space) { this.transform.setSpace(space); this.dirty = true; }
+  setSpace(space) { this.gizmoCtl.setSpace(space); this.dirty = true; }
 
   setSnap(on) {
-    this.transform.setTranslationSnap(on ? 1 : null);
-    this.transform.setRotationSnap(on ? 5 * DEG : null);
-    this.transform.setScaleSnap(on ? 0.05 : null);
-  }
-
-  onGizmoChange() {
-    const node = this.nodes.get(this.selectedId);
-    if (!node) return;
-    const a = node.anim;
-    const r = (x, dp = 3) => Math.round(x * 10 ** dp) / 10 ** dp;
-    let values;
-    switch (this.transform.mode) {
-      case 'translate': values = { px: r(a.position.x), py: r(a.position.y), pz: r(a.position.z) }; break;
-      case 'rotate': values = { rx: r(a.rotation.x / DEG, 2), ry: r(a.rotation.y / DEG, 2), rz: r(a.rotation.z / DEG, 2) }; break;
-      default: values = { sx: r(a.scale.x), sy: r(a.scale.y), sz: r(a.scale.z) };
-    }
-    this.app.setValuesLive(node.tl.id, values);
+    this.gizmoCtl.setSnap(on);
   }
 
   bindPointer() {
     const el = this.renderer.domElement;
     let down = null;
     el.addEventListener('pointerdown', (e) => {
-      down = { x: e.clientX, y: e.clientY, t: performance.now(), gizmo: this.transform.axis !== null, id: e.pointerId };
+      down = { x: e.clientX, y: e.clientY, t: performance.now(), id: e.pointerId };
     });
     el.addEventListener('pointerup', (e) => {
       if (!down || down.id !== e.pointerId) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       const quick = performance.now() - down.t < 450;
-      if (!down.gizmo && moved < 6 && quick && !this.transform.dragging) {
+      if (moved < 6 && quick && !this.gizmoCtl.dragging) {
         const id = this.pick(e.clientX, e.clientY);
         this.app.select(id);
       }
@@ -615,11 +533,9 @@ export class Engine {
     this.viewCamId = id;
     if (id) {
       this.orbit.object = this.proxyCam;
-      this.transform.camera = this.proxyCam;
       this.syncProxyFromCamera();
     } else {
       this.orbit.object = this.workCam;
-      this.transform.camera = this.workCam;
       if (this.savedTarget) this.orbit.target.copy(this.savedTarget);
       this.orbit.update();
     }
@@ -692,6 +608,7 @@ export class Engine {
       const node = this.nodes.get(this.selectedId);
       if (node) this.selBox.setFromObject(node.anim);
     }
+    this.gizmoCtl.update(this.activeCamera(), this.renderer.domElement.clientHeight);
     this.renderer.render(this.scene, this.activeCamera());
     if (viewNode) for (const h of viewNode.helpers) h.visible = true;
     this.dirty = false;
@@ -704,9 +621,9 @@ export class Engine {
 
   beginExport(w, h) {
     this.exporting = true;
-    this.saved = { pr: this.renderer.getPixelRatio(), grid: this.grid.visible, gizmo: this.gizmo.visible, sel: this.selBox.visible };
+    this.saved = { pr: this.renderer.getPixelRatio(), grid: this.grid.visible, gizmo: this.gizmoCtl.root.visible, sel: this.selBox.visible };
     this.grid.visible = false;
-    this.gizmo.visible = false;
+    this.gizmoCtl.root.visible = false;
     this.selBox.visible = false;
     for (const hlp of this.helpers) hlp.visible = false;
     this.renderer.setPixelRatio(1);
@@ -730,7 +647,7 @@ export class Engine {
   endExport() {
     this.exporting = false;
     this.grid.visible = this.saved.grid;
-    this.gizmo.visible = this.saved.gizmo;
+    this.gizmoCtl.root.visible = this.saved.gizmo;
     this.selBox.visible = this.saved.sel;
     for (const hlp of this.helpers) hlp.visible = true;
     this.renderer.setPixelRatio(this.saved.pr);

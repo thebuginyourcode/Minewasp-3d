@@ -186,10 +186,10 @@ export class Engine {
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     this.transform = new TransformControls(this.workCam, r.domElement);
     this.transform.setSpace('local');
-    this.transform.setSize(coarse ? 1.15 : 0.85);
+    this.transform.setSize(coarse ? 1.3 : 0.85);
     this.gizmo = this.transform.getHelper();
     scene.add(this.gizmo);
-    this.tuneRotateGizmo(coarse);
+    this.tuneGizmo(coarse);
 
     this.orbit = new OrbitControls(this.workCam, r.domElement);
     this.orbit.target.set(0, 16, 0);
@@ -269,12 +269,42 @@ export class Engine {
    * trackball sphere and the screen-space ring (both easy to grab by accident
    * and they tumble a part on every axis) and widens the axis ring pickers.
    */
-  tuneRotateGizmo(coarse) {
+  tuneGizmo(coarse) {
     const giz = this.transform._gizmo;
     for (const group of [giz.gizmo.rotate, giz.picker.rotate, giz.helper?.rotate]) {
       if (!group) continue;
       for (const c of [...group.children]) if (c.name === 'E' || c.name === 'XYZE') group.remove(c);
     }
+    // Translate: drop the
+    // tiny plane handles on touch screens, where they get grabbed by mistake.
+    if (coarse) {
+      for (const group of [giz.gizmo.translate, giz.picker.translate]) {
+        for (const c of [...group.children]) if (c.name === 'XY' || c.name === 'YZ' || c.name === 'XZ') group.remove(c);
+      }
+    }
+    // Two half-bars per axis (one per arrow), stopping short of the centre so the
+    // free-move handle and the other axes never overlap them.
+    const thick = coarse ? 0.3 : 0.2;
+    const axisIndex = { X: 0, Y: 1, Z: 2 };
+    for (const c of giz.picker.translate.children) {
+      if (c.name in axisIndex) {
+        const i = axisIndex[c.name];
+        c.geometry.computeBoundingBox();
+        const center = c.geometry.boundingBox.getCenter(new THREE.Vector3()).getComponent(i);
+        const size = [thick, thick, thick];
+        size[i] = 0.93;
+        const g = new THREE.BoxGeometry(...size);
+        const offset = [0, 0, 0];
+        offset[i] = Math.sign(center) * 0.585;
+        g.translate(...offset);
+        c.geometry.dispose();
+        c.geometry = g;
+      } else if (c.name === 'XYZ') {
+        c.geometry.dispose();
+        c.geometry = new THREE.OctahedronGeometry(coarse ? 0.16 : 0.2, 0);
+      }
+    }
+
     const tube = coarse ? 0.22 : 0.14;
     const rot = { X: [0, -Math.PI / 2, -Math.PI / 2], Y: [Math.PI / 2, 0, 0], Z: [0, 0, -Math.PI / 2] };
     for (const c of giz.picker.rotate.children) {

@@ -14,6 +14,7 @@ import { debounce, DEG, TRANSITION_GROUPS, uid, transitionLabel } from './util.j
 import { CATALOG, texturePaths, clearTextureCache, getModelDef, SEGMENT_PAIRS } from './models.js';
 import * as skins from './skins.js';
 import { openEasePicker } from './ease.js';
+import { ActionBar } from './actionbar.js';
 import { initPack, importPack, clearPack, packInfo } from './pack.js';
 import * as native from './native.js';
 import { ZipWriter } from './zip.js';
@@ -77,14 +78,14 @@ class App {
   buildChrome() {
     const cmd = $('commandbar');
     const cmdBtn = (iconName, label, onClick, opts = {}) => {
-      const b = h('button', { class: 'btn-ghost', type: 'button', title: opts.title || label, 'aria-label': label, onclick: onClick },
+      const b = h('button', { class: 'btn-ghost' + (opts.cls ? ' ' + opts.cls : ''), type: 'button', title: opts.title || label, 'aria-label': label, onclick: onClick },
         icon(iconName), h('span', { class: 'cmd-label' }, label), opts.menu ? icon('chevronDown', 'chev cmd-label') : null);
       return b;
     };
     this.undoBtn = iconButton('undo', 'Undo (Ctrl+Z)', () => this.undo());
     this.redoBtn = iconButton('redo', 'Redo (Ctrl+Y)', () => this.redo());
     cmd.append(
-      cmdBtn('add', 'Add', () => this.openLibrary(), { title: 'Add object (A)' }),
+      cmdBtn('add', 'Add', () => this.openLibrary(), { title: 'Add object (A)', cls: 'cmd-primary' }),
       cmdBtn('folder', 'File', (e) => this.fileMenu(e.currentTarget), { menu: true }),
       cmdBtn('rename', 'Edit', (e) => this.editMenu(e.currentTarget), { menu: true }),
       cmdBtn('video', 'Render', (e) => this.renderMenu(e.currentTarget), { menu: true }),
@@ -105,9 +106,9 @@ class App {
       this.toolBtns[id] = b;
       left.append(b);
     }
-    this.spaceBtn = iconButton('cubeLocal', 'Local space (toggle world)', () => this.toggleSpace());
-    this.snapBtn = iconButton('magnet', 'Snap', () => this.toggleSnap());
-    left.append(h('span', { class: 'divider' }), this.spaceBtn, this.snapBtn);
+    this.spaceBtn = iconButton('cubeLocal', 'Local space (toggle world)', () => this.toggleSpace(), { cls: 'vp-opt' });
+    this.snapBtn = iconButton('magnet', 'Snap', () => this.toggleSnap(), { cls: 'vp-opt' });
+    left.append(h('span', { class: 'divider vp-opt' }), this.spaceBtn, this.snapBtn);
 
     this.camBtn = h('button', { class: 'btn-ghost', type: 'button', title: 'View camera', onclick: (e) => this.cameraMenu(e.currentTarget) },
       icon('camera'), h('span', { class: 'cam-label' }, 'Work camera'), icon('chevronDown', 'chev'));
@@ -119,15 +120,8 @@ class App {
     );
     this.status = $('vpStatus');
 
-    // Axis lock: restrict the gizmo to one axis for precise control on touch screens.
-    this.axisBtns = {};
-    const axisBar = $('vpAxis');
-    axisBar.append(h('span', { class: 'axis-label' }, 'Axis'));
-    for (const ax of ['x', 'y', 'z']) {
-      const b = h('button', { class: `btn-ghost axis ${ax}`, type: 'button', title: `Lock to ${ax.toUpperCase()} axis`, 'aria-label': `Lock to ${ax.toUpperCase()} axis`, onclick: () => this.setAxisLock(this.engine.axisLock === ax ? null : ax) }, ax.toUpperCase());
-      this.axisBtns[ax] = b;
-      axisBar.append(b);
-    }
+    this.actions = new ActionBar($('vpActions'), this);
+    this.bindDockResize();
 
     // Dock tabs (compact) and side pivot (wide)
     const tabs = [['timeline', 'timeline', 'Timeline'], ['properties', 'sliders', 'Properties'], ['scene', 'settings', 'Scene']];
@@ -174,16 +168,7 @@ class App {
     this.tool = tool;
     this.engine.setTool(tool);
     for (const [k, b] of Object.entries(this.toolBtns)) b.classList.toggle('active', k === tool);
-    this.syncAxisBar?.();
-  }
-
-  setAxisLock(axis) {
-    this.engine.setAxisLock(axis);
-    for (const [k, b] of Object.entries(this.axisBtns)) b.classList.toggle('active', k === axis);
-  }
-
-  syncAxisBar() {
-    $('vpAxis').hidden = !this.selectedId || this.tool === 'select' || this.engine.viewCamId === this.selectedId;
+    this.actions?.sync();
   }
 
   toggleSpace() {
@@ -277,6 +262,9 @@ class App {
 
   viewMenu(anchor) {
     openMenu(anchor, [
+      { label: 'Snap to steps', icon: 'magnet', checked: this.snap, action: () => this.toggleSnap() },
+      { label: this.space === 'local' ? 'Local axes (tap for world)' : 'World axes (tap for local)', icon: this.space === 'local' ? 'cubeLocal' : 'globe', action: () => this.toggleSpace() },
+      'sep',
       { label: 'Show grid', icon: 'grid', checked: this.engine.showGrid, action: () => this.setGrid(!this.engine.showGrid) },
       { label: 'Select body parts', icon: 'bone', checked: this.engine.pickParts, action: () => { this.engine.pickParts = !this.engine.pickParts; } },
       'sep',
@@ -341,7 +329,7 @@ class App {
   }
 
   refreshAll() {
-    this.syncAxisBar();
+    this.actions?.sync();
     $('projectName').textContent = this.project.name;
     document.title = `${this.project.name} - Minewasp 3D`;
     this.engine.setSelected(this.selectedId);
@@ -374,6 +362,7 @@ class App {
     this.timeline.syncToolbar();
     this.timeline.draw();
     this.syncViewToolbar();
+    this.actions?.sync();
   }
 
   /* Runs a discrete change with undo support. */
@@ -438,6 +427,7 @@ class App {
     this.timeline.draw();
     this.props.update();
     this.updateStatus();
+    this.actions?.sync();
   }
 
   jumpKey(dir) {
@@ -458,7 +448,7 @@ class App {
     this.selectedId = id;
     if (!keepKeys && changed) this.selKeys.clear();
     this.engine.setSelected(id);
-    this.syncAxisBar();
+    this.actions?.sync();
     if (id) {
       // Reveal the row in the timeline.
       let t = findTl(this.project, findTl(this.project, id).parent);
@@ -532,6 +522,78 @@ class App {
       this.selKeys.clear();
       this.selKeys.add(tl.id + '|' + Math.floor(this.frame));
     });
+  }
+
+  /* Keys the object and all of its body parts at the current frame. */
+  keyWholeObject(rootId) {
+    const f = Math.floor(this.frame);
+    const group = [findTl(this.project, rootId), ...this.project.timelines.filter((t) => t.owner === rootId)].filter(Boolean);
+    this.mutate(() => {
+      this.selKeys.clear();
+      for (const t of group) { ensureKey(t, f, this.project); this.selKeys.add(t.id + '|' + f); }
+    });
+    native.haptic('light');
+    toast(`Keyed ${group.length} parts at frame ${f}.`);
+  }
+
+  deleteObjectKeysAt(rootId, f) {
+    const group = [findTl(this.project, rootId), ...this.project.timelines.filter((t) => t.owner === rootId)].filter(Boolean);
+    if (!group.some((t) => keyAt(t, f))) { toast(`Nothing is keyed at frame ${f}.`); return; }
+    this.mutate(() => {
+      for (const t of group) { t.keys = t.keys.filter((k) => k.f !== f); this.selKeys.delete(t.id + '|' + f); }
+    });
+  }
+
+  keyMenuToast(f) {
+    toast(`Frame ${f} is already keyed. Hold the key button for more options.`);
+  }
+
+  /*
+   * Drag the tab strip above the dock up or down to resize the panel
+   * (portrait phones). Double-tap the grip to toggle compact / tall.
+   */
+  bindDockResize() {
+    const tabs = $('dockTabs');
+    const ws = $('workspace');
+    const save = (v) => { try { localStorage.setItem('mw.dockSize', v); } catch { /* ignore */ } };
+    try { const saved = localStorage.getItem('mw.dockSize'); if (saved) ws.style.setProperty('--dock-size', saved); } catch { /* ignore */ }
+    const portrait = () => getComputedStyle($('dockGrip')).display !== 'none';
+    let drag = null, lastTap = 0, suppressClick = false;
+    tabs.addEventListener('pointerdown', (e) => {
+      if (!portrait()) return;
+      const dock = this.dock === 'timeline' ? $('paneTimeline') : $('paneSide');
+      drag = { y: e.clientY, h: dock.getBoundingClientRect().height, id: e.pointerId, active: false, onGrip: e.target.id === 'dockGrip' };
+      if (drag.onGrip) {
+        const now = performance.now();
+        if (now - lastTap < 300) {
+          const size = Math.round(window.innerHeight * (drag.h < window.innerHeight * 0.45 ? 0.6 : 0.3)) + 'px';
+          ws.style.setProperty('--dock-size', size);
+          save(size);
+          drag = null;
+          requestAnimationFrame(() => this.timeline.draw());
+        }
+        lastTap = now;
+      }
+    });
+    tabs.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      const dy = drag.y - e.clientY;
+      if (!drag.active) {
+        if (Math.abs(dy) < 8) return;
+        drag.active = true;
+        tabs.setPointerCapture(e.pointerId);
+      }
+      const size = Math.round(Math.min(window.innerHeight - 260, Math.max(150, drag.h + dy))) + 'px';
+      ws.style.setProperty('--dock-size', size);
+      this.timeline.draw();
+    });
+    const end = () => {
+      if (drag?.active) { save(ws.style.getPropertyValue('--dock-size')); suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); }
+      drag = null;
+    };
+    tabs.addEventListener('pointerup', end);
+    tabs.addEventListener('pointercancel', end);
+    tabs.addEventListener('click', (e) => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); } }, true);
   }
 
   deleteKeyAt(id, f) {

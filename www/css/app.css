@@ -976,16 +976,6 @@ input[type="range"].slider::-moz-range-thumb {
 .progress-toast .pt-pct { color: var(--text-3); font-variant-numeric: tabular-nums; }
 .progress-toast .progress { margin-top: 0; }
 
-/* Axis lock bar */
-.vp-axisbar { top: 58px; left: 10px; }
-.vp-axisbar[hidden] { display: none; }
-.vp-axisbar .axis-label { padding: 0 6px 0 8px; font-size: 12px; color: var(--text-3); }
-.vp-axisbar .btn-ghost.axis { width: 38px; font-weight: 700; font-size: 13px; }
-.vp-axisbar .btn-ghost.axis.x { color: #ff6b6b; }
-.vp-axisbar .btn-ghost.axis.y { color: #8fd16a; }
-.vp-axisbar .btn-ghost.axis.z { color: #5aa9ff; }
-.vp-axisbar .btn-ghost.axis.active { background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 -2px 0 currentColor; }
-@media (max-width: 599px) { .vp-axisbar { top: 54px; left: 8px; } }
 
 /* Library: options row and section headers */
 .lib-options { flex: none; display: flex; align-items: center; gap: 16px; padding: 0 20px 10px; }
@@ -1031,3 +1021,146 @@ input[type="range"].slider::-moz-range-thumb {
 
 .ease-button { gap: 6px; padding: 0 10px 0 6px; border: 1px solid var(--stroke-control); background: var(--bg-control); flex: none; }
 .ease-button .curve-icon { width: 34px; height: 22px; }
+
+/* ---------- Viewport action bar (thumb zone) ---------- */
+.vp-actionbar {
+  position: absolute;
+  left: 10px; right: 10px; bottom: 10px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  z-index: 3;
+  pointer-events: none;
+}
+.vp-actionbar > * { pointer-events: auto; }
+.ab-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.9);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.ab-group .btn-ghost { height: 44px; min-width: 44px; border-radius: 9px; }
+.ab-group .btn-ghost.icon-only { width: 44px; }
+.ab-group .btn-ghost.ab-axis { width: 40px; min-width: 0; font-weight: 700; font-size: 15px; }
+.ab-axis.x { color: #ff6b6b; }
+.ab-axis.y { color: #8fd16a; }
+.ab-axis.z { color: #5aa9ff; }
+.ab-axis.active { background: rgba(255, 255, 255, 0.14); box-shadow: inset 0 -3px 0 currentColor; }
+.ab-transform { flex: 1 1 auto; min-width: 0; }
+.ab-pad {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 1px, transparent 1px 12px), rgba(255, 255, 255, 0.04);
+  background-position: var(--pad-shift, 0) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-1);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  touch-action: none;
+  cursor: ew-resize;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ab-pad.dragging { background-color: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent); }
+.ab-pad.disabled { color: var(--text-3); cursor: default; }
+.ab-pad .pad-chev { color: var(--text-3); font-size: 15px; }
+.ab-pad b { font-weight: 600; }
+.ab-key {
+  flex: none;
+  width: 56px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+.ab-key svg { width: 26px; height: 26px; }
+.ab-key.keyed { background: #ffffff; }
+.ab-key:disabled { background: #2a2a2a; color: var(--text-disabled); box-shadow: none; }
+@media (hover: hover) { .ab-key:not(:disabled):hover { background: var(--accent-hover); } }
+.ab-key:not(:disabled):active { transform: scale(0.96); }
+.vp-status { bottom: 66px; }
+
+/* ---------- Resizable dock (portrait phones) ---------- */
+.dock-grip { display: none; }
+@media (max-width: 899px) and (orientation: portrait), (max-width: 599px) {
+  .workspace { grid-template-rows: minmax(0, 1fr) auto var(--dock-size, 44%); }
+  .dock-tabs { position: relative; padding-top: 10px; touch-action: none; }
+  .dock-grip {
+    display: block;
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 14px;
+    cursor: ns-resize;
+  }
+  .dock-grip::after {
+    content: "";
+    position: absolute;
+    left: 50%; top: 4px;
+    width: 40px; height: 4px;
+    margin-left: -20px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.28);
+  }
+}
+
+/* ---------- Touch sizing ---------- */
+@media (pointer: coarse) {
+  .btn, .combo select, .textbox, .numbox, .color-field { height: 40px; }
+  .numbox .nb-axis { width: 30px; }
+  .field-row { min-height: 40px; }
+  .section-head { height: 48px; font-size: 14px; }
+  .section-body { gap: 10px; }
+  .menu-item { min-height: 44px; }
+  .pivot-item { height: 48px; }
+  .vp-toolbar .btn-ghost { height: 40px; min-width: 40px; }
+  .vp-toolbar .btn-ghost.icon-only { width: 40px; }
+  .tl-toolbar { height: 52px; }
+  .tl-toolbar .btn-ghost.icon-only { width: 42px; height: 42px; }
+  .tl-row { height: 40px; font-size: 14px; }
+  .tl-row .eye-btn { height: 36px; }
+  .tl-row .chev-btn { width: 28px; height: 36px; }
+  .frame-box { height: 38px; }
+  .toggle .track { width: 44px; height: 24px; border-radius: 12px; }
+  .toggle .track::after { top: 4px; left: 4px; width: 14px; height: 14px; }
+  .toggle input:checked + .track::after { transform: translateX(20px); }
+  .ease-kind { padding: 8px 2px 7px; }
+  .lib-nav-item { height: 44px; }
+}
+@media (max-width: 599px) {
+  .vp-actionbar { left: 8px; right: 8px; bottom: 8px; gap: 6px; }
+  .ab-group .btn-ghost.ab-axis { width: 34px; }
+  .vp-status { bottom: 62px; left: 8px; }
+}
+
+/* Primary command (Add) */
+.commandbar .btn-ghost.cmd-primary { background: var(--accent); color: var(--accent-text); margin-right: 4px; }
+.commandbar .btn-ghost.cmd-primary svg { color: var(--accent-text); }
+@media (hover: hover) { .commandbar .btn-ghost.cmd-primary:hover { background: var(--accent-hover); } }
+.commandbar .btn-ghost.cmd-primary:active { background: var(--accent-press); }
+
+@media (max-width: 599px) {
+  .ab-pad .pad-tool { display: none; }
+  .ab-group .btn-ghost.icon-only { width: 40px; min-width: 40px; }
+  .ab-key { width: 52px; }
+  .ab-pad { margin-left: 2px; gap: 6px; }
+}
+@media (max-width: 429px) {
+  .vp-toolbar .vp-opt { display: none; }
+}

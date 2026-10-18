@@ -184,3 +184,13 @@ export function initNativeChrome({ onBack }) {
 export function minimizeApp() {
   plugin('App')?.minimizeApp?.().catch(() => {});
 }
+
+/* Short haptic feedback: 'tick' for snapping steps, 'light' for actions. */
+export function haptic(kind = 'light') {
+  const hp = plugin('Haptics');
+  if (hp) {
+    (kind === 'tick' ? hp.vibrate?.({ duration: 5 }) : hp.impact?.({ style: 'LIGHT' }))?.catch?.(() => {});
+    return;
+  }
+  try { navigator.vibrate?.(kind === 'tick' ? 4 : 10); } catch { /* unsupported */ }
+}

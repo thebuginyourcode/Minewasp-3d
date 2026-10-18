@@ -3,7 +3,7 @@ import { openEasePicker, curveIcon, shortLabel } from './ease.js';
 import { clamp } from './util.js';
 import { flattenRows, projectEnd } from './project.js';
 
-const ROW_H = 32;
+const ROW_H = window.matchMedia('(pointer: coarse)').matches ? 40 : 32;
 const RULER_H = 28;
 const PAD = 14;
 const LONG_PRESS = 480;
@@ -342,9 +342,21 @@ export class TimelinePanel {
           app.selectKey(tl.id, d.key.f, d.shift || app.multiSelect);
           if (!d.shift && !app.multiSelect) app.setFrame(d.key.f);
         } else if (d.mode === 'pan-pending') {
-          if (tl) app.select(tl.id);
-          if (!d.shift && !app.multiSelect) app.clearKeySelection();
-          app.setFrame(this.xToFrame(d.start.x));
+          const f = this.xToFrame(d.start.x);
+          const now = performance.now();
+          const last = this.lastTap;
+          // Double-tap an empty spot to add a keyframe there.
+          if (tl && last && now - last.t < 350 && last.id === tl.id && Math.abs(last.f - f) <= 1) {
+            this.lastTap = null;
+            app.select(tl.id);
+            app.setFrame(f);
+            app.addKeyframe();
+          } else {
+            this.lastTap = tl ? { t: now, id: tl.id, f } : null;
+            if (tl) app.select(tl.id);
+            if (!d.shift && !app.multiSelect) app.clearKeySelection();
+            app.setFrame(f);
+          }
         } else if (d.mode === 'move' && d.delta) {
           app.moveSelectedKeys(d.delta);
         }

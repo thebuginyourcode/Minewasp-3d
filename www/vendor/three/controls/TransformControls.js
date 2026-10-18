@@ -901,8 +901,9 @@ class TransformControlsGizmo extends Object3D {
 
 		// reusable geometry
 
-		const arrowGeometry = new CylinderGeometry( 0, 0.04, 0.1, 12 );
-		arrowGeometry.translate( 0, 0.05, 0 );
+		// Minewasp: larger arrowheads, shafts and rings so handles read clearly on phones.
+		const arrowGeometry = new CylinderGeometry( 0, 0.06, 0.14, 12 );
+		arrowGeometry.translate( 0, 0.07, 0 );
 
 		const scaleHandleGeometry = new BoxGeometry( 0.08, 0.08, 0.08 );
 		scaleHandleGeometry.translate( 0, 0.04, 0 );
@@ -910,12 +911,12 @@ class TransformControlsGizmo extends Object3D {
 		const lineGeometry = new BufferGeometry();
 		lineGeometry.setAttribute( 'position', new Float32BufferAttribute( [ 0, 0, 0,	1, 0, 0 ], 3 ) );
 
-		const lineGeometry2 = new CylinderGeometry( 0.0075, 0.0075, 0.5, 3 );
+		const lineGeometry2 = new CylinderGeometry( 0.016, 0.016, 0.5, 6 );
 		lineGeometry2.translate( 0, 0.25, 0 );
 
 		function CircleGeometry( radius, arc ) {
 
-			const geometry = new TorusGeometry( radius, 0.0075, 3, 64, arc * Math.PI * 2 );
+			const geometry = new TorusGeometry( radius, 0.016, 4, 64, arc * Math.PI * 2 );
 			geometry.rotateY( Math.PI / 2 );
 			geometry.rotateX( Math.PI / 2 );
 			return geometry;

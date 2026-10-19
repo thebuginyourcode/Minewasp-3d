@@ -50,6 +50,7 @@ export class Gizmo {
     this.engine = engine;
     this.mode = 'translate';
     this.space = 'local';
+    this.rotSpace = 'gimbal';
     this.snap = true;
     this.axisLock = null;
     this.object = null;
@@ -85,6 +86,7 @@ export class Gizmo {
   detach() { this.object = null; this.tl = null; this.drag = null; this.root.visible = false; }
   setMode(mode) { this.mode = mode; this.syncVisibility(); }
   setSpace(space) { this.space = space; }
+  setRotSpace(space) { this.rotSpace = space; }
   setSnap(on) { this.snap = on; }
   setAxisLock(axis) { this.axisLock = axis; this.syncVisibility(); }
 
@@ -123,6 +125,10 @@ export class Gizmo {
   /* World-space direction of an axis for the current mode. */
   axisWorld(ax) {
     const v = UNIT[ax].clone();
+    if (this.mode === 'rotate' && this.rotSpace === 'local') {
+      return v.applyQuaternion(this.object.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    }
+    if (this.mode === 'rotate' && this.rotSpace === 'world') return v;
     if (this.mode === 'rotate') {
       // Gimbal axes for Euler XYZ: X in the parent frame, Y after X, Z after X and Y.
       const r = this.object.rotation;
@@ -267,7 +273,18 @@ export class Gizmo {
     };
     const so = this.toScreen(o);
     if (this.mode === 'rotate') {
-      // Screen direction of increasing angle at the grabbed point on the ring.
+      // Spin by following the finger around the ring: the finger's ray is
+      // intersected with the ring's plane and its angle measured in that plane,
+      // so the ring turns exactly as far as the finger goes round it.
+      const toCam = this.engine.activeCamera().position.clone().sub(o).normalize();
+      drag.angular = Math.abs(dir.dot(toCam)) > 0.2;
+      drag.u = new THREE.Vector3().crossVectors(dir, Math.abs(dir.y) < 0.9 ? UNIT.y : UNIT.x).normalize();
+      drag.w = new THREE.Vector3().crossVectors(dir, drag.u);
+      drag.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(dir, o);
+      drag.prevAngle = this.planeAngle(drag, p);
+      drag.spin = 0;
+      drag.q0 = obj.quaternion.clone();
+      // Edge-on rings fall back to sliding along the ring's on-screen direction.
       const radial = h.point.clone().sub(o).normalize();
       const tangent = new THREE.Vector3().crossVectors(dir, radial).normalize();
       const a = this.toScreen(h.point);
@@ -300,10 +317,21 @@ export class Gizmo {
       const len2 = d.screen.x ** 2 + d.screen.y ** 2;
       const along = (dx * d.screen.x + dy * d.screen.y) / Math.max(len2, 1e-6);
       if (this.mode === 'rotate') {
-        let deg = (along * d.perUnit) / DEG;
-        if (len2 < 36) deg = dx * 0.6;
-        const i = AXES.indexOf(d.ax);
-        values['r' + d.ax] = +step(5, d.rot[i] + deg).toFixed(2);
+        let deg;
+        if (d.angular) {
+          const a = this.planeAngle(d, p);
+          if (a !== null && d.prevAngle !== null) {
+            let da = a - d.prevAngle;
+            if (da > Math.PI) da -= 2 * Math.PI;
+            if (da < -Math.PI) da += 2 * Math.PI;
+            d.spin += da;
+          }
+          if (a !== null) d.prevAngle = a;
+          deg = d.spin / DEG;
+        } else {
+          deg = len2 < 36 ? dx * 0.6 : (along * d.perUnit) / DEG;
+        }
+        Object.assign(values, this.rotationValues(d, deg, step));
       } else if (this.mode === 'scale') {
         const i = d.ax;
         values['s' + i] = +step(0.05, d.scl[i] + along).toFixed(4);
@@ -324,6 +352,37 @@ export class Gizmo {
     this.engine.app.setValuesLive(this.tl.id, values);
   }
 
+  /* Angle of the finger around the ring, measured in the ring's plane (null near the centre or off-plane). */
+  planeAngle(d, p) {
+    const e = this.engine;
+    const rect = e.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2((p.x / rect.width) * 2 - 1, -(p.y / rect.height) * 2 + 1);
+    this.ray = this.ray || new THREE.Raycaster();
+    this.ray.setFromCamera(ndc, e.activeCamera());
+    const hit = this.ray.ray.intersectPlane(d.plane, new THREE.Vector3());
+    if (!hit) return null;
+    const v = hit.sub(d.origin);
+    if (v.length() < 0.15 * this.scale) return null;
+    return Math.atan2(v.dot(d.w), v.dot(d.u));
+  }
+
+  /* Rotation values after turning `deg` degrees about the dragged axis in the current rotation space. */
+  rotationValues(d, deg, step) {
+    const i = AXES.indexOf(d.ax);
+    // Gimbal snaps the resulting value; local/world snap the turn itself.
+    if (this.rotSpace === 'gimbal') return { ['r' + d.ax]: +step(5, d.rot[i] + deg).toFixed(2) };
+    deg = step(5, deg);
+    let q;
+    if (this.rotSpace === 'local') {
+      q = d.q0.clone().multiply(new THREE.Quaternion().setFromAxisAngle(UNIT[d.ax], deg * DEG));
+    } else {
+      const axis = UNIT[d.ax].clone().applyQuaternion(this.parentQuat().invert()).normalize();
+      q = new THREE.Quaternion().setFromAxisAngle(axis, deg * DEG).multiply(d.q0);
+    }
+    const [rx, ry, rz] = eulerNear(q, d.rot);
+    return { rx: +rx.toFixed(2), ry: +ry.toFixed(2), rz: +rz.toFixed(2) };
+  }
+
   endDrag() {
     const e = this.engine;
     this.drag = null;
@@ -332,6 +391,22 @@ export class Gizmo {
     e.app.endEdit();
     e.dirty = true;
   }
+}
+
+/*
+ * XYZ Euler angles (degrees) for a rotation, picking whichever of the two
+ * equivalent solutions, and whichever multiple of 360, lies closest to `ref`,
+ * so interpolation between keyframes takes the short way round.
+ */
+function eulerNear(q, ref) {
+  const e = new THREE.Euler().setFromQuaternion(q, 'XYZ');
+  const a = [e.x / DEG, e.y / DEG, e.z / DEG];
+  const b = [a[0] + 180, 180 - a[1], a[2] + 180];
+  const near = (v, r) => v + 360 * Math.round((r - v) / 360);
+  const fit = (c) => c.map((v, i) => near(v, ref[i]));
+  const fa = fit(a), fb = fit(b);
+  const cost = (c) => c.reduce((s, v, i) => s + Math.abs(v - ref[i]), 0);
+  return cost(fa) <= cost(fb) ? fa : fb;
 }
 
 function segmentDistance(px, py, a, b) {

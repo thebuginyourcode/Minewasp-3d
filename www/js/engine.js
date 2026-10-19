@@ -459,6 +459,8 @@ export class Engine {
 
   setSpace(space) { this.gizmoCtl.setSpace(space); this.dirty = true; }
 
+  setRotSpace(space) { this.gizmoCtl.setRotSpace(space); this.dirty = true; }
+
   setSnap(on) {
     this.gizmoCtl.setSnap(on);
   }

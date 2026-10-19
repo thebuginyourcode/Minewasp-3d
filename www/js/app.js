@@ -144,6 +144,8 @@ class App {
     this.snap = snap;
     this.engine.setSnap(snap);
     this.space = 'local';
+    this.rotSpace = ['gimbal', 'local', 'world'].includes(localStorage.getItem('mw.rotSpace')) ? localStorage.getItem('mw.rotSpace') : 'gimbal';
+    this.engine.setRotSpace(this.rotSpace);
     this.setTool('translate');
     this.syncViewToolbar();
   }
@@ -169,12 +171,27 @@ class App {
     this.engine.setTool(tool);
     for (const [k, b] of Object.entries(this.toolBtns)) b.classList.toggle('active', k === tool);
     this.actions?.sync();
+    if (this.spaceBtn) this.syncViewToolbar();
   }
 
+  /* The space button cycles rotation modes with the Rotate tool, and move axes otherwise. */
   toggleSpace() {
+    if (this.tool === 'rotate') {
+      const order = ['gimbal', 'local', 'world'];
+      this.setRotSpace(order[(order.indexOf(this.rotSpace) + 1) % order.length]);
+      return;
+    }
     this.space = this.space === 'local' ? 'world' : 'local';
     this.engine.setSpace(this.space);
     this.syncViewToolbar();
+  }
+
+  setRotSpace(space) {
+    this.rotSpace = space;
+    this.engine.setRotSpace(space);
+    try { localStorage.setItem('mw.rotSpace', space); } catch { /* ignore */ }
+    this.syncViewToolbar();
+    toast({ gimbal: 'Rotation: gimbal (each ring edits one value)', local: 'Rotation: local (rings follow the part)', world: 'Rotation: world (rings follow the scene)' }[space]);
   }
 
   toggleSnap() {
@@ -185,8 +202,14 @@ class App {
   }
 
   syncViewToolbar() {
-    this.spaceBtn.replaceChildren(icon(this.space === 'local' ? 'cubeLocal' : 'globe'));
-    this.spaceBtn.title = this.space === 'local' ? 'Local space (tap for world)' : 'World space (tap for local)';
+    if (this.tool === 'rotate') {
+      const ic = { gimbal: 'gimbal', local: 'cubeLocal', world: 'globe' }[this.rotSpace];
+      this.spaceBtn.replaceChildren(icon(ic));
+      this.spaceBtn.title = `Rotation: ${this.rotSpace} (tap to change)`;
+    } else {
+      this.spaceBtn.replaceChildren(icon(this.space === 'local' ? 'cubeLocal' : 'globe'));
+      this.spaceBtn.title = this.space === 'local' ? 'Move: local axes (tap for world)' : 'Move: world axes (tap for local)';
+    }
     this.snapBtn.classList.toggle('active', this.snap);
     const cam = this.engine.viewCamId ? findTl(this.project, this.engine.viewCamId) : null;
     this.camBtn.querySelector('.cam-label').textContent = cam ? cam.name : 'Work camera';
@@ -263,7 +286,13 @@ class App {
   viewMenu(anchor) {
     openMenu(anchor, [
       { label: 'Snap to steps', icon: 'magnet', checked: this.snap, action: () => this.toggleSnap() },
-      { label: this.space === 'local' ? 'Local axes (tap for world)' : 'World axes (tap for local)', icon: this.space === 'local' ? 'cubeLocal' : 'globe', action: () => this.toggleSpace() },
+      { header: 'Rotation' },
+      { label: 'Gimbal \u2014 each ring edits one value', icon: 'gimbal', checked: this.rotSpace === 'gimbal', action: () => this.setRotSpace('gimbal') },
+      { label: 'Local \u2014 follow the part', icon: 'cubeLocal', checked: this.rotSpace === 'local', action: () => this.setRotSpace('local') },
+      { label: 'World \u2014 follow the scene', icon: 'globe', checked: this.rotSpace === 'world', action: () => this.setRotSpace('world') },
+      { header: 'Move' },
+      { label: 'Local axes', icon: 'cubeLocal', checked: this.space === 'local', action: () => { if (this.space !== 'local') { this.space = 'local'; this.engine.setSpace('local'); this.syncViewToolbar(); } } },
+      { label: 'World axes', icon: 'globe', checked: this.space === 'world', action: () => { if (this.space !== 'world') { this.space = 'world'; this.engine.setSpace('world'); this.syncViewToolbar(); } } },
       'sep',
       { label: 'Show grid', icon: 'grid', checked: this.engine.showGrid, action: () => this.setGrid(!this.engine.showGrid) },
       { label: 'Select body parts', icon: 'bone', checked: this.engine.pickParts, action: () => { this.engine.pickParts = !this.engine.pickParts; } },

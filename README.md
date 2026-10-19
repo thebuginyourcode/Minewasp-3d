@@ -39,7 +39,7 @@ The download is pinned to 1.21.4 because its entity textures match the built-in 
 **Viewport**
 - Thumb-zone action bar: step frames (hold to repeat), pick X / Y / Z, drag the pad to rotate, move or scale that axis precisely (double-tap the pad to reset), and tap the large key button to add a keyframe (hold it to key or clear a whole character)
 - Touch orbit, pan and pinch-zoom
-- Touch-first move, rotate and scale gizmo: handles never hide or flicker, are hit-tested in screen space with finger-sized tolerance, and drag along their on-screen direction; rotation rings each edit exactly one of the X / Y / Z values; tapping through a handle still selects what is behind it
+- Touch-first move, rotate and scale gizmo: handles never hide or flicker, are hit-tested in screen space with finger-sized tolerance, and drag along their on-screen direction; rotation rings spin exactly as far as your finger goes around them, in Gimbal (each ring edits one of the X / Y / Z values), Local (rings follow the part) or World (rings follow the scene) mode, with angles kept continuous between keyframes; tapping through a handle still selects what is behind it
 - Resizable bottom panel on phones: drag the tab strip up or down, or double-tap its grip
 - Tap to select an object or one of its body parts
 - Look through any camera. While looking through a camera, orbiting moves the camera and keys it.
